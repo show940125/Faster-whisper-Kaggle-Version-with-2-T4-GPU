@@ -70,9 +70,9 @@ pip install faster-whisper==1.0.3
 
 1. 前往 Hugging Face 模型頁面：範例[faster-whisper-large-v2-zh-TW](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW)
 2. 點擊頁面中的 **Files and version** 按鈕，將模型的所有檔案下載到本地電腦。
-3. 登入 Kaggle，並前往 **Datasets** 頁面，點擊 **Create New Dataset**。
-4. 在建立新的 Dataset 時，為它取一個名稱，例如：`faster-whisper-large-v2-zh-TW`。
-5. 將下載好的所有檔案上傳到該 Dataset 資料夾中。
+3. 登入 Kaggle，並在頁面中點擊**creat**，選擇 **Create New model**。
+4. 在建立新的 model 時，為它取一個名稱，例如：`faster-whisper-large-v2-zh-TW`。
+5. 將下載好的所有檔案上傳到該 model 資料夾中。
 6. 上傳完成後，點擊 **Create** 按鈕，即可完成模型上傳至 Kaggle。
 7. 首次使用項目時，點擊右邊"input"下的"add input"，選"models"以及"your work"正確找到你上傳好的model，之後再啟動notebokk就會自動加載(拍手~)
 
