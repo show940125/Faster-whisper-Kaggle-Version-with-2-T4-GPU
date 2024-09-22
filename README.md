@@ -69,7 +69,7 @@ pip install faster-whisper==1.0.3
 接下來，將 `faster-whisper` 模型從 Hugging Face 下載，並上傳至 Kaggle。請遵循以下步驟：
 
 1. 前往 Hugging Face 模型頁面：範例[faster-whisper-large-v2-zh-TW](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW)
-2. 點擊頁面右上角的 **Download** 按鈕，將模型的所有檔案下載到本地電腦。
+2. 點擊頁面中的 **Files and version** 按鈕，將模型的所有檔案下載到本地電腦。
 3. 登入 Kaggle，並前往 **Datasets** 頁面，點擊 **Create New Dataset**。
 4. 在建立新的 Dataset 時，為它取一個名稱，例如：`faster-whisper-large-v2-zh-TW`。
 5. 將下載好的所有檔案上傳到該 Dataset 資料夾中。
