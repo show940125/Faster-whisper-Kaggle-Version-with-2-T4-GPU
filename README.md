@@ -1,4 +1,4 @@
-# Faster-whisper-Kaggle-Version-with-2-T4-GPU-
+# Faster-whisper-Kaggle-Version-with-2-T4-GPU
 媒體、政治工作者的長篇逐字稿救星
 
 #### 歡迎來到 **show940125** 的 GitHub 倉庫！本專案提供媒體工作者、政治工作者及苦逼工讀生擺脫不效率的**聽打困境**，特別設計一個高效的音頻轉錄的傻瓜操作方案。
