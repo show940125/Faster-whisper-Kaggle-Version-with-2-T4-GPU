@@ -2,7 +2,7 @@
 媒體、政治工作者的長篇逐字稿救星
 
 <div align="center">
-  <a href="#繁體中文" style="margin-right: 10px;">
+  <a href="#繁體中文" style="margin-right: 20px;">
     <img src="https://img.shields.io/badge/繁體中文-000?style=for-the-badge&logo=translate&logoColor=white" alt="繁體中文">
   </a>
   <a href="#english">
@@ -95,7 +95,7 @@ pip install faster-whisper==1.0.3
 
 #### 3. 上傳音檔至 Kaggle，並在notebook中加載
 
-1. 從你的裝置將欲轉錄的音檔切一半，你可以用ffempeg或是用剪映都可
+1. 從你的裝置將欲轉錄的音檔切一半，你可以用ffmpeg或是用剪映都可
 2. 跟上傳模型步驟類似，只是要選擇dataset，你可以在同一個dataset中上傳複數個音檔
 3. 使用notebook的時候"add input"將音檔匯入notebook中，方法跟model一樣
 4. **注意在之後的代碼中複製(點copy)音檔路徑到指定位置**
@@ -333,3 +333,342 @@ merge_transcriptions("04.txt", "05.txt", "merged_output.txt")
 
 ## English
 
+### Welcome to **show940125**'s GitHub repository! This project offers media professionals, political workers, and diligent student assistants a solution to overcome the inefficiency of **transcription challenges**. It is a well-designed and user-friendly audio transcription method.
+
+### Why Not Use Colab?
+
+1. **GPU Availability and Stability**: Colab imposes limitations and instability in accessing GPUs. Even though mounting Google Drive can simplify the workflow, the core of transcription tasks relies heavily on GPU performance.
+2. **Maximizing Free Resources**: To fully utilize all available free resources, this project leverages Kaggle's two free T4 GPUs, significantly enhancing transcription efficiency and enabling you to effortlessly complete various transcription tasks.
+3. **Reliable Free GPU Access**: Kaggle is a free machine learning platform that offers 30 hours of free GPU usage each week. Compared to the unreliable nature of Colab, Kaggle's offerings are more than sufficient to meet daily work requirements.
+
+### Personal Note
+
+Having moved away from a career in political work, I understand that individuals in such roles might not frequently visit GitHub. My dedication to helping future generations avoid the pitfalls of my previous job is the driving force behind this project. The current codebase is nearing stability, and any potential optimizations will be explored with the help of GPT in the future.
+
+### Existing Online Demos
+
+There are faster demos available online, such as whisperJAX, Whisper Web GPU, and even Groq API. However, these solutions lack the ability to use customized models and cannot handle larger audio files (typically over 25MB or approximately 30 minutes of low-bitrate MP3 files) easily.
+
+### ☆ A Gift for the Worthy~
+
+This entire setup is currently free of charge, and that is the point.
+
+## Table of Contents
+
+- [Features](#features)
+- [Technical Highlights](#technical-highlights)
+- [Installation and Setup](#installation-and-setup)
+- [Usage](#usage)
+- [Code Examples](#code-examples)
+- [Contributing](#contributing)
+- [License](#license)
+- [Third-Party Licensing](#third-party-licensing)
+- [Acknowledgements](#acknowledgements)
+- [Contact](#contact)
+
+## Features
+
+1. **Dual GPU Parallel Processing and Merging Functionality Expansion**
+   - **Dual GPU Parallel Processing**: Supports simultaneous processing of two audio files using dual T4 GPUs, significantly enhancing transcription efficiency.
+   - **Transcription Text Merging and Timestamp Continuity**: Merges multiple transcription results into a single file with automatic timestamp continuation, ensuring a continuous timeline.
+
+2. **Model Localization and Loading Optimization**
+   - **Pre-downloaded Model and Local Loading**: Pre-download models compatible with `faster-whisper` and upload them to Kaggle's module to avoid re-downloading each run, improving preheat speed.
+
+3. **Text Segmentation and Printing Optimization**
+   - **Fixed Time Interval Segmentation**: Segments text based on fixed 30-second intervals to enhance readability.
+   - **Hybrid Natural and Fixed Segmentation**: Combines natural sentence segmentation with fixed time intervals to maintain sentence coherence and paragraph readability.
+
+4. **Resolution of Repeated Sentences Issue**
+   - **Corrected Paragraph Accumulation and Clearing Logic**: Prevents the occurrence of repeated sentences, ensuring clean text output.
+
+5. **Timestamp Position and Format Adjustment**
+   - **Timestamps at the Beginning of Paragraphs**: Standardizes timestamp format, ensuring each paragraph's timestamp is at the very beginning of the text.
+
+## Technical Highlights
+
+- **Dual GPU Parallel Processing**: Fully utilizes Kaggle’s two T4 GPUs, doubling transcription efficiency.
+- **Efficient Multithreading**: Implements multithreading using `concurrent.futures.ThreadPoolExecutor` to maximize GPU resource utilization.
+- **Optimized Model Loading**: Localizes `faster-whisper` compatible models on Kaggle, avoiding repeated downloads and reducing preparation time to under 1 minute and 30 seconds.
+- **Flexible Text Segmentation**: Supports both fixed time interval and natural sentence segmentation methods to improve transcription text readability.
+- **Automated Transcription Merging**: Automatically continues timestamps to ensure a continuous timeline across multiple transcription files.
+
+## Installation and Setup
+
+### Environment Requirements
+- **Python Version**: 3.8+
+- **Platform**: Kaggle (pre-configured environment)
+- **Hardware**: Two T4 GPUs (provided free by Kaggle)
+
+### Running Steps
+
+#### 1. Install Required Python Packages
+
+In a new Kaggle Notebook, execute the following command to install the `faster-whisper` package (approximately 20 seconds):
+
+```python
+%%time
+pip install faster-whisper==1.0.3
+```
+
+#### 2. Upload Model to Kaggle and Load in Notebook
+
+Next, download the `faster-whisper` model from Hugging Face and upload it to Kaggle. Follow these steps:
+
+1. **Visit the Hugging Face Model Page**: Example [faster-whisper-large-v2-zh-TW](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW)
+2. **Download Model Files**: Click the **Files and versions** button on the page to download all model files to your local computer.
+3. **Upload to Kaggle**:
+   - Login to Kaggle and click **Create** > **Create New Model**.
+   - Name the model, for example, `faster-whisper-large-v2-zh-TW`.
+   - Upload all downloaded files to the model's directory.
+   - After uploading, click **Create** to complete the model upload to Kaggle.
+4. **Add Model to Notebook**:
+   - When first using the project, click **Add Input** under the "Input" section, select **Models**, and locate your uploaded model under "your work".
+   - Once added, the notebook will automatically load the model. (Applause~)
+
+**Note**: The `largeV3` model is 10%–20% faster than `largeV2` in transcription speed, but the `largeV2` model fine-tuned for Chinese offers better accuracy. The provided example uses one of the most accurate versions available.
+
+#### 3. Upload Audio Files to Kaggle and Load in Notebook
+
+1. **Split Audio Files**: Divide your audio files in half using tools like `ffmpeg` or any audio editing software.
+2. **Upload to Dataset**: Similar to uploading the model, but select **Dataset**. You can upload multiple audio files within the same dataset.
+3. **Import Audio Files into Notebook**:
+   - In the notebook, click **Add Input** to import the audio files, following the same method as uploading the model.
+4. **Copy Audio File Paths**: **Important**: In the subsequent code, copy (Ctrl + C) the paths of the audio files to the designated locations.
+
+## Usage
+
+In a new Kaggle Notebook, follow the steps below by executing the provided code blocks.
+
+## Code Examples
+(Copy and paste the code blocks, make adjustments as needed)
+
+### Transcribing Audio Files
+
+1. **Set `MODEL_PATH`**: Copy the path of your input Whisper model (simply click COPY).
+2. **Other Parameters**: These have been validated through over 300 hours of transcription tasks and generally do not require adjustments.
+3. **Replacements**: The `replacements` section (use Ctrl + F to find) provides a better experience for fixed transcription tasks (e.g., transcribing the same speaker multiple times). Directly replace fixed misspelled words with correct ones in the format `"incorrect_word": "correct_word"`.
+4. **Audio Path Settings**: Set the audio paths in the two paths under `def main():`, with the first path at the top and the second at the bottom. The resulting two TXT files are preset as `04.txt` and `05.txt`. Due to the need for subsequent merging, renaming is not recommended; otherwise, rename synchronously during merging.
+5. **Performance**: This project (using the example model) has been tested with a 3-hour audio file (WAV format, approximately 300MB). The transcription task takes about 9 minutes, with an average accuracy above 95% in chinese. Through replacement rules, accuracy can reach 99%, no exaggeration.
+6. **Recording Recommendations**: It is recommended to use WAV files for transcrbing, as they offer better accuracy than MP3 files. WAV files (192K & 256K) are approximately the limit of audio quality affecting accuracy; larger files are ineffective.
+
+```python
+from faster_whisper import WhisperModel
+import datetime
+import os
+import logging
+
+# Configure Logging
+logging.basicConfig()
+logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
+
+import concurrent.futures
+from typing import List, Tuple
+
+# Set constants
+MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/transformers/default/1"
+SEGMENT_DURATION = 30.0
+MAX_WORKERS = 2
+
+def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
+    # Use the provided model to transcribe
+    segments, info = model.transcribe(
+        input_file, 
+        word_timestamps=True, 
+        initial_prompt=None,
+        beam_size=4, 
+        language="zh", 
+        max_new_tokens=192, 
+        condition_on_previous_text=False,
+        vad_filter=True, 
+        vad_parameters=dict(min_silence_duration_ms=300)
+    )
+    
+    process_segments(segments, output_file, segment_duration)
+
+def process_segments(segments, output_file: str, segment_duration: float) -> None:
+    # Process transcription segments
+    txt_content = ""
+    current_segment_start = 0.0
+    current_segment_text = ""
+
+    for segment in segments:
+        start_time, end_time = segment.start, segment.end
+        text = replace_special_chars(segment.text)
+        
+        current_segment_text += " " + text
+
+        if float(end_time) - float(current_segment_start) >= segment_duration:
+            formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
+            print(formatted_segment)
+            txt_content += formatted_segment
+            
+            current_segment_start = float(end_time)
+            current_segment_text = ""
+    
+    # Handle the last segment
+    if current_segment_text:
+        formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
+        print(formatted_segment)
+        txt_content += formatted_segment
+    
+    # Write the result to file
+    with open(output_file, 'w', encoding="utf-8") as txt_file:
+        txt_file.write(txt_content)
+    
+    print(f"Saved: {os.path.abspath(output_file)}")
+
+def format_segment(start_time: float, end_time: float, text: str) -> str:
+    # Format a single segment
+    start_time_str = format_to_custom_timestamp(start_time)
+    end_time_str = format_to_custom_timestamp(end_time)
+    return f"{start_time_str}-{end_time_str} {text.strip()}\n"
+
+def replace_special_chars(text: str) -> str:
+    # Replace special characters and correct common errors
+    if text.startswith(("! ", " ")):
+        text = text.lstrip("! ")
+    
+    replacements = {
+        "XX": "OO", 
+    }
+    
+    for original, replacement in replacements.items():
+        text = text.replace(original, replacement)
+    
+    return text
+
+def format_to_custom_timestamp(seconds: float) -> str:
+    # Convert seconds to custom timestamp format
+    dt = datetime.datetime(1, 1, 1) + datetime.timedelta(seconds=seconds)
+    return f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
+
+def main():
+    # Define multiple audio files
+    files: List[Tuple[str, str, int]] = [
+        ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
+        ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
+    ]
+    
+    # Preload models for each device
+    device_indices = set([device_index for _, _, device_index in files])
+    models = {}
+    for device_index in device_indices:
+        models[device_index] = WhisperModel(
+            MODEL_PATH, device="cuda", device_index=device_index, compute_type="float16"
+        )
+
+    # Use thread pool to process audio files in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Pass the models here
+        futures = [executor.submit(transcribe_audio, input_file, output_file, device_index, models[device_index]) 
+                   for input_file, output_file, device_index in files]
+
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+    print("All transcription tasks are completed.")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Merging Transcription Texts
+
+Simply copy and execute to merge the two transcribed documents directly (default filename is `merged_output.txt`). Renaming is not recommended to avoid issues during merging.
+
+```python
+def merge_transcriptions(file1, file2, output_file):
+    def parse_timestamp(timestamp_str):
+        """Convert timestamp in XX:XX:XX format to seconds"""
+        h, m, s = map(int, timestamp_str.split(':'))
+        return h * 3600 + m * 60 + s
+
+    def format_timestamp(seconds):
+        """Convert seconds to XX:XX:XX timestamp format"""
+        return format_to_custom_timestamp(seconds)
+    
+    merged_content = ""
+    total_duration = 0
+
+    # Read the first file's content
+    with open(file1, 'r', encoding="utf-8") as f1:
+        for line in f1:
+            # Assume timestamp is at the beginning of the line in XX:XX:XX-XX:XX:XX format
+            time_range, text = line.split(' ', 1)
+            start_time_str, end_time_str = time_range.split('-')
+            
+            # Convert timestamp to seconds
+            start_time = parse_timestamp(start_time_str)
+            end_time = parse_timestamp(end_time_str)
+            
+            # Update timestamps to include the cumulative total time
+            new_start_time = format_timestamp(start_time + total_duration)
+            new_end_time = format_timestamp(end_time + total_duration)
+            
+            # Merge the updated line
+            merged_content += f"{new_start_time}-{new_end_time} {text}"
+        
+        # Update the cumulative total time
+        total_duration = parse_timestamp(new_end_time)
+    
+    # Read the second file's content and merge
+    with open(file2, 'r', encoding="utf-8") as f2:
+        for line in f2:
+            time_range, text = line.split(' ', 1)
+            start_time_str, end_time_str = time_range.split('-')
+            
+            # Convert timestamp to seconds
+            start_time = parse_timestamp(start_time_str)
+            end_time = parse_timestamp(end_time_str)
+            
+            # Update timestamps to include the cumulative total time
+            new_start_time = format_timestamp(start_time + total_duration)
+            new_end_time = format_timestamp(end_time + total_duration)
+            
+            # Merge the updated line
+            merged_content += f"{new_start_time}-{new_end_time} {text}"
+    
+    # Save the merged content to the output file
+    with open(output_file, 'w', encoding="utf-8") as out_file:
+        out_file.write(merged_content)
+
+    print(f"Transcriptions merged and saved to {output_file}")
+
+# Assume 04.txt and 05.txt have been successfully generated
+merge_transcriptions("04.txt", "05.txt", "merged_output.txt")
+```
+
+## Contributing
+
+Contributions are welcome in any form! If you need assistance or wish to make adjustments, feel free to consult GPT. I also developed this project gradually with its help~
+
+## License
+
+This project is licensed under the [MIT License](LICENSE). See the [LICENSE](LICENSE) file for details.
+
+## Third-Party Licensing
+
+- **faster-whisper**: This project uses the [faster-whisper](https://github.com/SYSTRAN/faster-whisper) library, which is licensed under the MIT License.
+- **faster-whisper-large-v2-zh-TW Model**: The example model used in this project is sourced from [Hugging Face](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW). Please adhere to its [licensing terms](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW).
+
+## Acknowledgements
+
+Special thanks to the following projects and resources for supporting this project:
+
+- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) development team
+- [Hugging Face](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW) for providing excellent model resources
+- [Kaggle](https://www.kaggle.com/) for providing free GPU resources
+
+## Contact
+
+If you have any questions or suggestions, please reach out through the following methods:
+
+- **Email**: a0953041880@gmail.com
+- **GitHub Issues**: Not available
+
+Thank you for your attention and support! See you next time~
+
+---
+
+> **Note**: This project makes full use of the free GPU resources provided by Kaggle. Please comply with Kaggle's terms of use, use resources responsibly, and avoid misuse.
