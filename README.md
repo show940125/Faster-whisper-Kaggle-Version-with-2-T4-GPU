@@ -1,6 +1,18 @@
 # Faster-whisper-Kaggle-Version-with-2-T4-GPU
 媒體、政治工作者的長篇逐字稿救星
 
+<div align="center">
+  <a href="#繁體中文" style="margin-right: 10px;">
+    <img src="https://img.shields.io/badge/繁體中文-000?style=for-the-badge&logo=translate&logoColor=white" alt="繁體中文">
+  </a>
+  <a href="#english">
+    <img src="https://img.shields.io/badge/English-000?style=for-the-badge&logo=translate&logoColor=white" alt="English">
+  </a>
+</div>
+
+---
+## 繁體中文
+
 ### 歡迎來到 **show940125** 的 GitHub 倉庫！本專案提供媒體工作者、政治工作者及苦逼工讀生擺脫不效率的**聽打困境**，特別設計一個高效的音頻轉錄的傻瓜操作方案。
 ### 為何不使用colab？
 1. 因為獲取GPU的限制與不穩定性，即便掛載drive可以讓整個程序更容易使用，但轉錄任務的重點仍在GPU。
@@ -318,3 +330,6 @@ merge_transcriptions("04.txt", "05.txt", "merged_output.txt")
 - **GitHub Issues**：略
 
 感謝您的關注與支持！醬~下次見
+
+## English
+
