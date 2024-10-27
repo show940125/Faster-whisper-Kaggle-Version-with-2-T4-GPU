@@ -13,7 +13,7 @@
 ---
 ## 繁體中文
 
-### 歡迎來到 **show940125** 的 GitHub 倉庫！本專案提供媒體工作者、政治工作者及苦逼工讀生擺脫不效率的**聽打困境**，特別設計一個高效的音頻轉錄的傻瓜操作方案。
+### 本專案提供媒體工作者、政治工作者及苦逼工讀生擺脫不效率的**聽打困境**，特別設計一個高效的音頻轉錄的傻瓜操作方案。
 ### 為何不使用colab？
 1. 因為獲取GPU的限制與不穩定性，即便掛載drive可以讓整個程序更容易使用，但轉錄任務的重點仍在GPU。
 2. 因此，為了充分利用所有免費資源，使用 Kaggle 平台免費提供的兩張 T4 GPU 資源，可以大幅提升轉錄效率，助您輕鬆完成各類轉錄任務。
@@ -21,6 +21,44 @@
 ### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
+
+### ☆新增：**微調** Tokenizer 以加入特定專業術語(2024/10/27)
+
+為了提升 `faster-whisper` 模型在台灣特定術語中的轉錄準確度，我們可以微調 `tokenizer`，加入特定領域的專業術語。以下為新增微調 `tokenizer` 的步驟與建議。
+
+#### 1. 收集專業術語
+- 確認需要新增的台灣法律專有名詞。
+#### 2. 新增專業術語至 Tokenizer
+- 使用 `tokenizer.add_tokens(new_tokens)` 方法將詞彙加入到現有的 `tokenizer`。
+- 範例代碼：
+  ```python
+  from transformers import AutoTokenizer
+  
+  tokenizer = AutoTokenizer.from_pretrained("your_model_path")
+  new_tokens = ["XX", "XX", "XX", "XX", "XX"]
+  tokenizer.add_tokens(new_tokens)
+  tokenizer.save_pretrained("path_to_save_tokenizer")
+  ```
+
+#### 3. 測試與驗證新 Tokenizer
+- 將擴展後的 `tokenizer`(path_to_save_tokenizer內的所有檔案)覆蓋到模型原路徑，並運行 `faster-whisper` 加以測試其轉錄效果是否改善。
+
+#### 4. 注意事項
+- 確保 `tokenizer` 與模型版本相容，避免版本不匹配導致錯誤。
+- 微調後的版本包含模型的檔案名稱應有：
+  ```
+  added_tokens.json
+  config.json
+  merges.txt
+  model.bin
+  preprocessor_config.json
+  special_tokens_map.json
+  tokenizer.json
+  tokenizer_config.json
+  vocab.json
+  vocabulary.json
+  ```
+- 如果你下載的模型中以含有以上檔名，則該模型之tokenizer已經微調。
 
 ## 目錄
 
