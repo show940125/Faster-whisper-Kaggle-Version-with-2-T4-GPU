@@ -111,10 +111,11 @@
 #### 1. 安裝必要的 Python 套件
 
 在新開的 Kaggle Notebook 中，執行以下命令來安裝 `faster-whisper` 套件：(約20秒)
+#### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前已退回版本方式處理
 
 ```python
 %%time
-pip install faster-whisper==1.0.3
+pip install faster-whisper==1.0.3 ctranslate2==4.4.0
 ```
 
 #### 2. 上傳模型至 Kaggle，並在notebook中加載
