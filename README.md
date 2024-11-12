@@ -17,7 +17,7 @@
 ### 為何不使用colab？
 1. 因為獲取GPU的限制與不穩定性，即便掛載drive可以讓整個程序更容易使用，但轉錄任務的重點仍在GPU。
 2. 因此，為了充分利用所有免費資源，使用 Kaggle 平台免費提供的兩張 T4 GPU 資源，可以大幅提升轉錄效率，助您輕鬆完成各類轉錄任務。
-3. kaggle是一個免費的機器學習平台，特點是每個星期提供30個小時的免費GPU，相較於不穩定的colab`，絕對足以滿足日常的工作任務。
+3. kaggle是一個免費的機器學習平台，特點是每個星期提供30個小時的免費GPU，相較於不穩定的colab，絕對足以滿足日常的工作任務。
 ### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
@@ -111,7 +111,7 @@
 #### 1. 安裝必要的 Python 套件
 
 在新開的 Kaggle Notebook 中，執行以下命令來安裝 `faster-whisper` 套件：(約20秒)
-#### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前已退回版本方式處理
+#### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前以退回版本方式處理
 
 ```python
 %%time
@@ -173,12 +173,12 @@ SEGMENT_DURATION = 30.0
 MAX_WORKERS = 2
 
 def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
-    # 使用傳入的模型進行轉錄
+    # 使用傳入的模型進行轉錄(initial_prompt某種程度上有熱詞功能，也可以試試加入常用詞)
     segments, info = model.transcribe(
         input_file, 
         word_timestamps=True, 
-        initial_prompt=None,
-        beam_size=4, 
+        initial_prompt="繁體中文",
+        beam_size=5, 
         language="zh", 
         max_new_tokens=192, 
         condition_on_previous_text=False,
