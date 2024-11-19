@@ -58,7 +58,7 @@
   vocab.json
   vocabulary.json
   ```
-- 如果你下載的模型中以含有以上檔名，則該模型之tokenizer已經微調。
+- 如果你下載的模型中已含有以上檔名，則該模型之tokenizer已經微調。
 
 ## 目錄
 
@@ -159,6 +159,8 @@ from faster_whisper import WhisperModel
 import datetime
 import os
 import logging
+import concurrent.futures
+from typing import List, Tuple
 
 # 配置 Logging
 logging.basicConfig()
@@ -171,6 +173,12 @@ from typing import List, Tuple
 MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/transformers/default/1"
 SEGMENT_DURATION = 30.0
 MAX_WORKERS = 2
+
+# 定義多個音頻文件
+files: List[Tuple[str, str, int]] = [
+    ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
+    ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
+]
 
 def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
     # 使用傳入的模型進行轉錄(initial_prompt某種程度上有熱詞功能，也可以試試加入常用詞)
@@ -232,9 +240,9 @@ def replace_special_chars(text: str) -> str:
         text = text.lstrip("! ")
     
     replacements = {
-        "XX": "OO", 
+        "XX": "OO"
     }
-    
+    # XX=錯字:OO=正確字
     for original, replacement in replacements.items():
         text = text.replace(original, replacement)
     
@@ -246,12 +254,7 @@ def format_to_custom_timestamp(seconds: float) -> str:
     return f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
 
 def main():
-    # 定義多個音頻文件
-    files: List[Tuple[str, str, int]] = [
-        ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
-        ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
-    ]
-    
+        
     # 預加載每個設備的模型
     device_indices = set([device_index for _, _, device_index in files])
     models = {}
@@ -496,6 +499,8 @@ from faster_whisper import WhisperModel
 import datetime
 import os
 import logging
+import concurrent.futures
+from typing import List, Tuple
 
 # Configure Logging
 logging.basicConfig()
@@ -508,6 +513,12 @@ from typing import List, Tuple
 MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/transformers/default/1"
 SEGMENT_DURATION = 30.0
 MAX_WORKERS = 2
+
+# Define multiple audio files
+files: List[Tuple[str, str, int]] = [
+    ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
+    ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
+]
 
 def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
     # Use the provided model to transcribe
@@ -583,12 +594,7 @@ def format_to_custom_timestamp(seconds: float) -> str:
     return f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
 
 def main():
-    # Define multiple audio files
-    files: List[Tuple[str, str, int]] = [
-        ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
-        ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
-    ]
-    
+        
     # Preload models for each device
     device_indices = set([device_index for _, _, device_index in files])
     models = {}
