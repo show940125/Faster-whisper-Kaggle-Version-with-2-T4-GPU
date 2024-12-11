@@ -94,8 +94,8 @@
 ## 技術特色
 
 - **雙 GPU 並行處理**：充分利用 Kaggle 提供的兩張 T4 GPU 資源，提升轉錄效率100%。
-- **高效的多執行緒處理**：使用 `concurrent.futures.ThreadPoolExecutor` 實現多執行緒處理，最大化 GPU 資源利用。
-- **優化的模型加載**：將 `faster-whisper` 適用的模型kaggle化，避免每次重複下載，使得轉錄任務前的準備時間可以壓縮至1分30秒以內。
+- **高效的多執行緒處理**：使用 `concurrent.futures.ThreadPoolExecutor` 實現多執行緒處理，最大化 GPU 資源利用。經測試，多進程效率低於多線程(2024/12/11，FW=1.1.0)
+- **優化的模型加載**：將 `faster-whisper` 適用的模型kaggle化，避免每次重複下載，使得轉錄任務前的準備時間可以壓縮至1分鐘以內。
 - **靈活的文本分段方式**：支持固定時間間隔與自然語句結合的分段方式，提升轉錄文本的可讀性。
 - **自動化的轉錄文本合併**：自動接續時間戳記，確保多個轉錄文件的時間軸連續。
 
@@ -432,7 +432,7 @@ This entire setup is currently free of charge, and that is the point.
 
 - **Dual GPU Parallel Processing**: Fully utilizes Kaggle’s two T4 GPUs, doubling transcription efficiency.
 - **Efficient Multithreading**: Implements multithreading using `concurrent.futures.ThreadPoolExecutor` to maximize GPU resource utilization.
-- **Optimized Model Loading**: Localizes `faster-whisper` compatible models on Kaggle, avoiding repeated downloads and reducing preparation time to under 1 minute and 30 seconds.
+- **Optimized Model Loading**: Localizes `faster-whisper` compatible models on Kaggle, avoiding repeated downloads and reducing preparation time to under 1 minute.
 - **Flexible Text Segmentation**: Supports both fixed time interval and natural sentence segmentation methods to improve transcription text readability.
 - **Automated Transcription Merging**: Automatically continues timestamps to ensure a continuous timeline across multiple transcription files.
 
@@ -451,7 +451,7 @@ In a new Kaggle Notebook, execute the following command to install the `faster-w
 
 ```python
 %%time
-pip install faster-whisper==1.0.3
+pip install faster-whisper==1.1.0
 ```
 
 #### 2. Upload Model to Kaggle and Load in Notebook
