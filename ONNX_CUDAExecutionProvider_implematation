@@ -1,0 +1,66 @@
+這是一個猴子補丁，用來將vad功能以GPU執行，取代原來的CPU。實測發現，除了部分RAM消耗轉至其中一個VRAM，其他無明顯變化，效率些微降低，但?字符好像也變少?(缺乏嚴謹測試)
+
+# 拉掉原來的onnx依賴
+!pip uninstall -y onnxruntime
+# 重灌 onnxruntime-gpu
+!pip install onnxruntime-gpu
+# 檢查CUDAExecutionProvider是否存在
+import onnxruntime
+print("Available providers:", onnxruntime.get_available_providers())
+  # 猴子補丁(放在一推import之後；主程式代碼之前的代碼塊。主代碼塊完全不用動)
+"""
+import onnxruntime
+from faster_whisper.vad import SileroVADModel
+
+# 保存原始的 __init__ 用於後續呼叫
+_original_init = SileroVADModel.__init__
+
+def _gpu_init(self, encoder_path, decoder_path):
+    import onnxruntime
+    _original_init(self, encoder_path, decoder_path)
+    
+    # 重新建立session使用GPU
+    opts = onnxruntime.SessionOptions()
+    opts.inter_op_num_threads = 0
+    opts.intra_op_num_threads = 0
+    opts.log_severity_level = 4
+
+    # 嘗試使用GPU，若無法則自動降級至CPU
+    providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    print(f"Using providers: {providers}")  # 添加打印以確認
+
+    try:
+        self.encoder_session = onnxruntime.InferenceSession(
+            encoder_path,
+            providers=providers,
+            sess_options=opts,
+        )
+        print(f"Encoder providers: {self.encoder_session.get_providers()}")
+    except Exception as e:
+        print(f"Failed to initialize encoder with CUDA. Falling back to CPU. Error: {e}")
+        self.encoder_session = onnxruntime.InferenceSession(
+            encoder_path,
+            providers=["CPUExecutionProvider"],
+            sess_options=opts,
+        )
+        print(f"Encoder providers: {self.encoder_session.get_providers()}")
+
+    try:
+        self.decoder_session = onnxruntime.InferenceSession(
+            decoder_path,
+            providers=providers,
+            sess_options=opts,
+        )
+        print(f"Decoder providers: {self.decoder_session.get_providers()}")
+    except Exception as e:
+        print(f"Failed to initialize decoder with CUDA. Falling back to CPU. Error: {e}")
+        self.decoder_session = onnxruntime.InferenceSession(
+            decoder_path,
+            providers=["CPUExecutionProvider"],
+            sess_options=opts,
+        )
+        print(f"Decoder providers: {self.decoder_session.get_providers()}")
+
+# 替換SileroVADModel的__init__為_gpu_init，使得後續建立實例時啟用GPU
+SileroVADModel.__init__ = _gpu_init
+"""
