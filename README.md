@@ -116,7 +116,7 @@
 
 ```python
 %%time
-pip install faster-whisper==1.1.0 ctranslate2==4.4.0
+pip install faster-whisper==1.1.1 ctranslate2==4.4.0
 ```
 
 #### 2. 上傳模型至 Kaggle，並在notebook中加載
@@ -451,7 +451,7 @@ In a new Kaggle Notebook, execute the following command to install the `faster-w
 
 ```python
 %%time
-pip install faster-whisper==1.1.0
+pip install faster-whisper==1.1.1
 ```
 
 #### 2. Upload Model to Kaggle and Load in Notebook
