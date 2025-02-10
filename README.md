@@ -21,44 +21,7 @@
 ### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
-### ☆新增：**FW1.1.0 with Batched pipeline full code (2024/11/22)
-### ☆新增：**微調** Tokenizer 以加入特定專業術語(2024/10/27)
-
-為了提升 `faster-whisper` 模型在台灣特定術語中的轉錄準確度，我們可以微調 `tokenizer`，加入特定領域的專業術語。以下為新增微調 `tokenizer` 的步驟與建議。
-
-#### 1. 收集專業術語
-- 確認需要新增的台灣法律專有名詞。
-#### 2. 新增專業術語至 Tokenizer
-- 使用 `tokenizer.add_tokens(new_tokens)` 方法將詞彙加入到現有的 `tokenizer`。
-- 範例代碼：
-  ```python
-  from transformers import AutoTokenizer
-  
-  tokenizer = AutoTokenizer.from_pretrained("your_model_path")
-  new_tokens = ["XX", "XX", "XX", "XX", "XX"]
-  tokenizer.add_tokens(new_tokens)
-  tokenizer.save_pretrained("path_to_save_tokenizer")
-  ```
-
-#### 3. 測試與驗證新 Tokenizer
-- 將擴展後的 `tokenizer`(path_to_save_tokenizer內的所有檔案)覆蓋到模型原路徑，並運行 `faster-whisper` 加以測試其轉錄效果是否改善。
-
-#### 4. 注意事項
-- 確保 `tokenizer` 與模型版本相容，避免版本不匹配導致錯誤。
-- 微調後的版本包含模型的檔案名稱應有：
-  ```
-  added_tokens.json
-  config.json
-  merges.txt
-  model.bin
-  preprocessor_config.json
-  special_tokens_map.json
-  tokenizer.json
-  tokenizer_config.json
-  vocab.json
-  vocabulary.json
-  ```
-- 如果你下載的模型中已含有以上檔名，則該模型之tokenizer已經微調。
+### ☆新增：**FW1.1.1 with Batched pipeline full code (2024/11/22)
 
 ## 目錄
 
@@ -82,8 +45,8 @@
    - **模型預先下載與本地加載**：提前下載適用 `faster-whisper` 的模型並上傳至 Kaggle的module，避免每次運行時重新下載，提高預熱速度。
 
 3. **轉錄文本的分段與打印優化**
-   - **固定時間間隔分段**：基於固定的 30 秒時間間隔進行文本分段，提升可讀性。
-   - **自然分段結合固定分段**：結合自然語句分段與固定時間分段，保留語句連貫性與段落可讀性。
+   - **固定時間間隔分段**：基於固定的 30 秒時間間隔進行文本分段，提升上下文可讀性，方便後續校正。
+   - **gemini後續校正**：利用Google AI Studio可調用免費gemini 2.0 flash進行高精度免費校稿，經多次測試驗證，每次校正約6500token之份量可以兼顧穩定的校正品質以及效率。
 
 4. **重複語句的問題解決**
    - **修正段落累積與清空邏輯**：避免重複語句的出現，確保文本整潔。
