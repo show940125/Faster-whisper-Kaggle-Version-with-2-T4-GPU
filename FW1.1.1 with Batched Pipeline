@@ -1,0 +1,155 @@
+"""
+!pip install faster-whisper==1.1.1 ctranslate2==4.4.0 -q
+"""
+
+"""
+from faster_whisper import WhisperModel, BatchedInferencePipeline
+import datetime, time, os, re, torch, glob
+from typing import List, Tuple, Dict
+import concurrent.futures, threading
+"""
+
+"""
+# ---------- 可調參數 ----------
+MODEL_PATH = "/kaggle/input/faster-whisper..."
+AUDIO_ROOT = "/kaggle/input"            # 只改這裡就能換資料來源
+AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")   # 允許的音檔副檔名
+SEGMENT_DURATION = 30.0                          # 每段最長秒數
+BATCH_SIZE = 8
+MAX_CONCURRENCY_PER_GPU = 2                     # 同張卡並行上限
+REPLACEMENTS: Dict[str, str] = {                # 常見錯字修正表
+    "XX": "OO" 
+}
+INITIAL_PROMPT = "法律"                      # 給模型的 system prompt（可留空）
+
+# ---------- 自動收集音檔 ----------
+def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
+    """
+    遞迴走訪 root 底下所有子目錄，
+    只要檔名副檔名（不論大小寫）符合 exts，就收進來。
+    """
+    exts_lower = {e.lower() for e in exts}
+    files = []
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            ext = os.path.splitext(fn)[1].lower()
+            if ext in exts_lower:
+                files.append(os.path.join(dirpath, fn))
+    return sorted(files)
+
+# ---------- 建立 (音檔, 輸出檔, GPU index) 對照表 ----------
+def create_job_table(audio_files: List[str], gpu_count: int) -> List[Tuple[str, str, int]]:
+    jobs = []
+    for idx, path in enumerate(audio_files, start=1):
+        # 取原始檔名（不含副檔名）作為輸出檔名
+        base = os.path.splitext(os.path.basename(path))[0]
+        out_name = f"{base}.txt"
+        gpu_idx = idx % gpu_count
+        jobs.append((path, out_name, gpu_idx))
+    return jobs
+
+# ---------- 取代/清洗工具 ----------
+pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS.keys()))
+def clean_text(txt: str) -> str:
+    txt = txt.lstrip("! ")
+    return pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
+
+def to_timestamp(sec: float) -> str:
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+def fmt_chunk(start: float, end: float, txt: str) -> str:
+    return f"{to_timestamp(start)}-{to_timestamp(end)} {txt.strip()}\n"
+
+# ---------- 轉錄 + 寫檔 ----------
+def process_segments(segments, outfile: str, max_len=SEGMENT_DURATION):
+    buf, chunk_start, chunk_txt = "", 0.0, ""
+    for seg in segments:
+        chunk_txt += " " + clean_text(seg.text)
+        if seg.end - chunk_start >= max_len:
+            line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+            print(line, end="", flush=True)
+            buf += line
+            chunk_start, chunk_txt = seg.end, ""
+    if chunk_txt:
+        line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+        print(line, end="", flush=True)
+        buf += line
+    with open(outfile, "w", encoding="utf‑8") as fh:
+        fh.write(buf)
+    print(f" ✔ 已寫入 {outfile}")
+
+def transcribe_single(job, pipelines, semaphores):
+    in_path, out_path, gpu_idx = job
+    sem = semaphores[gpu_idx]
+    with sem:  # 限制同一張卡的並行數
+        try:
+            segments, _info = pipelines[gpu_idx].transcribe(
+                in_path,
+                batch_size=BATCH_SIZE,
+                word_timestamps=True,
+                hallucination_silence_threshold=3,
+                initial_prompt=INITIAL_PROMPT or None,
+                beam_size=5,
+                temperature=0,
+                patience=1.5,
+                language="zh",
+                max_new_tokens=256,
+                condition_on_previous_text=False,
+                no_repeat_ngram_size=3,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 250, "speech_pad_ms": 600},
+                log_progress=True,
+            )
+            process_segments(segments, out_path)
+        except Exception as exc:
+            print(f" ✘ 轉錄失敗: {in_path} ({exc})")
+
+# ---------- 主流程 ----------
+def main():
+    # 1. 檢查 GPU 數量
+    gpu_count = torch.cuda.device_count() or 1
+    if gpu_count > 4:
+        gpu_count = 4
+    print(f"偵測到 GPU 數量：{gpu_count}")
+
+    # 2. 掃描音檔
+    audio_files = collect_audio_files(AUDIO_ROOT)
+    if not audio_files:
+        raise RuntimeError(f"找不到任何音檔於 {AUDIO_ROOT}")
+    print(f"共找到 {len(audio_files)} 個音檔")
+
+    # 3. 建立工作清單（原檔名輸出）
+    job_table = create_job_table(audio_files, gpu_count)
+
+    # 4. 初始化模型與 pipeline
+    pipelines = {}
+    for idx in range(gpu_count):
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        model = WhisperModel(MODEL_PATH, device=dev, device_index=idx, compute_type="float16")
+        pipelines[idx] = BatchedInferencePipeline(model=model)
+        print(f"GPU {idx} 模型初始化完成")
+
+    # 5. 建立 Semaphore 控制單卡併發
+    semaphores = {idx: threading.Semaphore(MAX_CONCURRENCY_PER_GPU) for idx in range(gpu_count)}
+
+    # 6. 多執行緒轉錄
+    total_workers = gpu_count * MAX_CONCURRENCY_PER_GPU
+    with concurrent.futures.ThreadPoolExecutor(max_workers=total_workers) as pool:
+        futures = [pool.submit(transcribe_single, job, pipelines, semaphores) for job in job_table]
+        for _ in concurrent.futures.as_completed(futures):
+            pass
+
+    print("🎉 所有轉錄任務完成！")
+
+# Entry
+if __name__ == "__main__":
+    audio_list = collect_audio_files(AUDIO_ROOT)
+    print(f"共找到 {len(audio_list)} 個音檔，前 10 筆：")
+    for p in audio_list[:10]:
+        print("  ", p)
+    tic = time.time()
+    main()
+    print(f"總耗時：{time.time() - tic:.1f} 秒")
