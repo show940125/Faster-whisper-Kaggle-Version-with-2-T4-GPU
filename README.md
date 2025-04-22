@@ -16,12 +16,12 @@
 ### 本專案提供媒體工作者、政治工作者及苦逼工讀生擺脫不效率的**聽打困境**，特別設計一個高效的音頻轉錄的傻瓜操作方案。
 ### 為何不使用colab？
 1. 因為獲取GPU的限制與不穩定性，即便掛載drive可以讓整個程序更容易使用，但轉錄任務的重點仍在GPU。
-2. 因此，為了充分利用所有免費資源，使用 Kaggle 平台免費提供的兩張 T4 GPU 資源，可以大幅提升轉錄效率，助您輕鬆完成各類轉錄任務。
+2. 因此，為了充分利用所有免費資源，使用 Kaggle 平台免費提供的兩張 T4 GPU 資源，可以大幅提升轉錄效率，助您輕鬆完成各類轉錄任務。**[更新]** **新代碼會自動偵測可用的 GPU 數量，並合理分配任務。**
 3. kaggle是一個免費的機器學習平台，特點是每個星期提供30個小時的免費GPU，相較於不穩定的colab，絕對足以滿足日常的工作任務。
-### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~
+### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~ **[更新]** **新代碼整合了批次處理 (Batch Processing) 和更精細的並行控制，效率更高。**
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
-### ☆新增：**FW1.1.1 with Batched pipeline full code (2024/11/22)
+### ~~☆新增：**FW1.1.1 with Batched pipeline full code (2024/11/22)~~ **[更新]** **目前代碼已整合 `BatchedInferencePipeline`，並提供更完善的自動化處理流程 (2025/04/22)。**
 
 ## 目錄
 
@@ -37,29 +37,39 @@
 
 ## 功能
 
-1. **雙 GPU 並行處理與合併功能擴展**
-   - **雙 GPU 並行處理**：支持雙 T4 GPU 同時處理兩個音頻文件，顯著提升轉錄效率。
-   - **轉錄文本合併與時間戳記接續**：將多個轉錄結果合併為一個文件，並自動接續時間戳記，確保時間軸連續。
+1.  **[更新]** **多 GPU 自動化並行處理**
+    *   **自動 GPU 偵測與分配**：自動偵測 Kaggle 環境中可用的 T4 GPU 數量 (最多支援4個)，並以輪詢 (Round-Robin) 方式將音檔分配給不同 GPU 處理。
+    *   **批次推理 (Batch Inference)**：利用 `BatchedInferencePipeline` 將多個轉錄請求打包處理，大幅提升 GPU 利用率和整體吞吐量。
+    *   **單 GPU 並行控制**：可設定每張 GPU 同時處理的最大任務數 (`MAX_CONCURRENCY_PER_GPU`)，避免單一 GPU 過載，確保穩定運行。
+    *   **轉錄文本合併與時間戳記接續**：將多個轉錄結果合併為一個文件，並自動接續時間戳記，確保時間軸連續。
 
-2. **模型本地化與加載優化**
-   - **模型預先下載與本地加載**：提前下載適用 `faster-whisper` 的模型並上傳至 Kaggle的module，避免每次運行時重新下載，提高預熱速度。
+2.  **模型本地化與加載優化**
+    *   **模型預先下載與本地加載**：提前下載適用 `faster-whisper` 的模型並上傳至 Kaggle 的 Datasets 或 Models，避免每次運行時重新下載，提高預熱速度。
+    *   **[新增]** **多 GPU 模型獨立加載**：為每個偵測到的 GPU 獨立加載模型實例，確保並行處理順暢。
 
-3. **轉錄文本的分段與打印優化**
-   - **固定時間間隔分段**：基於固定的 30 秒時間間隔進行文本分段，提升上下文可讀性，方便後續校正。
-   - **gemini後續校正**：利用Google AI Studio可調用免費gemini 2.0 flash進行高精度免費校稿，經多次測試驗證，每次校正約6500token之份量可以兼顧穩定的校正品質以及效率。
+3.  **轉錄文本的分段與打印優化**
+    *   **固定時間間隔分段**：基於可配置的 `SEGMENT_DURATION` (預設 30 秒) 時間間隔進行文本分段，提升上下文可讀性，方便後續校正。
+    *   **即時進度打印**：轉錄過程中，逐段打印帶時間戳的文本到控制台，方便即時監控進度。**[新增]**
+    *   **gemini後續校正**：利用Google AI Studio可調用免費gemini 2.5 /proflash進行高精度免費校稿，經多次測試驗證，每次校正約6500token之份量可以兼顧穩定的校正品質以及效率。
 
-4. **重複語句的問題解決**
-   - **修正段落累積與清空邏輯**：避免重複語句的出現，確保文本整潔。
+4.  **[更新]** **易用性與錯誤處理**
+    *   **自動音檔掃描**：自動遞迴掃描指定根目錄 (`AUDIO_ROOT`) 下的所有音檔 (支援 `.wav`, `.flac`, `.mp3`, `.ogg` 等格式)，無需手動指定每個文件。
+    *   **自動輸出命名**：根據掃描到的音檔順序，自動生成 `01.txt`, `02.txt`... 等輸出檔名。
+    *   **參數集中管理**：將常用參數 (模型路徑、音檔根目錄、批次大小、並行數、替換詞等) 集中在代碼開頭，方便修改。
+    *   **錯誤捕捉**：對單個文件的轉錄過程進行錯誤捕捉，避免單一文件失敗導致整個程序中斷。
 
-5. **時間戳記位置與格式調整**
-   - **時間戳記置於段落開頭**：統一時間戳記格式，確保每個段落的時間戳記位於文本最前端。
+5.  **時間戳記位置與格式調整**
+    *   **時間戳記置於段落開頭**：統一時間戳記格式 (`HH:MM:SS-HH:MM:SS`)，確保每個段落的時間戳記位於文本最前端。
 
 ## 技術特色
 
-- **雙 GPU 並行處理**：充分利用 Kaggle 提供的兩張 T4 GPU 資源，提升轉錄效率100%。
-- **高效的多執行緒處理**：使用 `concurrent.futures.ThreadPoolExecutor` 實現多執行緒處理，最大化 GPU 資源利用。經測試，多進程效率低於多線程(2024/12/11，FW=1.1.0)
-- **優化的模型加載**：將 `faster-whisper` 適用的模型kaggle化，避免每次重複下載，使得轉錄任務前的準備時間可以壓縮至1分鐘以內。
-- **靈活的文本分段方式**：支持固定時間間隔與自然語句結合的分段方式，提升轉錄文本的可讀性。
+- **[更新]** **高效批次推理**：利用 `BatchedInferencePipeline` 實現高效批次處理，最大化 GPU 吞吐量。
+- **[更新]** **自動化多 GPU 管理**：自動偵測並利用所有可用 GPU (最多4個)，智能分配任務。
+- **[更新]** **精細化並行控制**：通過 `threading.Semaphore` 控制單張 GPU 的並行任務數，平衡效率與穩定性。
+- **[更新]** **自動化文件處理**：自動掃描音檔、自動命名輸出文件，簡化操作流程。
+- **高效的多執行緒處理**：使用 `concurrent.futures.ThreadPoolExecutor` 實現多執行緒調度。~~經測試，多進程效率低於多線程(2024/12/11，FW=1.1.0)~~ **[註]** **新代碼依然使用多線程，結合 Semaphore 控制並行度。**
+- **優化的模型加載**：將 `faster-whisper` 適用的模型上傳 Kaggle，避免每次重複下載，減少轉錄任務前的準備時間。
+- **靈活的文本分段方式**：支持固定時間間隔 (`SEGMENT_DURATION`) 分段方式，提升轉錄文本的可讀性。
 - **自動化的轉錄文本合併**：自動接續時間戳記，確保多個轉錄文件的時間軸連續。
 
 ## 安裝與設定
@@ -75,11 +85,12 @@
 
 在新開的 Kaggle Notebook 中，執行以下命令來安裝 `faster-whisper` 套件：(約20秒)
 #### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前以退回版本方式處理
-#### 2024/12/11**更新**:FW1.1.0版本中問題似乎已經解決，可以拿掉ctranslate2==4.4.0。
+#### 2024/12/11**更新**:~FW1.1.0版本中問題似乎已經解決，可以拿掉ctranslate2==4.4.0。~
+#### 2025/04/22**更新**:FW1.1.1版本下問題受限於平台環境的依賴版本，目前仍需ctranslate2==4.4.0。 **[註]**:平台環境目前不穩定，建議回滾到去年以前的環境或等更新
 
 ```python
-%%time
-pip install faster-whisper==1.1.1 ctranslate2==4.4.0
+!pip install faster-whisper==1.1.1 ctranslate2==4.4.0 -q
+# 使用 -q 安靜模式安裝
 ```
 
 #### 2. 上傳模型至 Kaggle，並在notebook中加載
@@ -96,12 +107,14 @@ pip install faster-whisper==1.1.1 ctranslate2==4.4.0
 
 備註：largeV3模型微調的model在轉錄速度上會比largeV2的快10%~20%，但精度上，基於largeV2微調的模型對於中文的適應性較佳，範例提供的版本已經是精度最佳的版本之一。
 
-#### 3. 上傳音檔至 Kaggle，並在notebook中加載
+####  [更新] 上傳音檔至 Kaggle Dataset
+
 
 1. 從你的裝置將欲轉錄的音檔切一半，你可以用ffmpeg或是用剪映都可
 2. 跟上傳模型步驟類似，只是要選擇dataset，你可以在同一個dataset中上傳複數個音檔
 3. 使用notebook的時候"add input"將音檔匯入notebook中，方法跟model一樣
-4. **注意在之後的代碼中複製(點copy)音檔路徑到指定位置**
+4. 之後代碼對自動捕捉音檔，不用管他
+
 
 ## 使用方法
 
@@ -114,136 +127,159 @@ pip install faster-whisper==1.1.1 ctranslate2==4.4.0
 1. 注意MODEL_PATH = "複製你input的whisper model的路徑(直接點COPY就好)"
 2. 其他參數已經經過超過300小時以上的轉錄任務實際驗證，不太需要調整
 3. replacements(用Ctrl+f查找)部分能提供固定轉錄任務(比如多次轉錄同一個講者的音檔)較佳的體驗，把固定的錯漏字直接替換成正確的文字，格式為"錯字": "正確字",
-4. 音頻路徑設定在def main():向下的兩個路徑當中，前面的在上，後面在下。轉錄完畢的兩個TXT檔預設為04&05，由於需配合後續合併，不建議更名，不然合併時也要同步改名~
-5. 本專案(按範例模型)實測3小時音頻文件(WAV檔，同常大小約300MB)的轉錄任務約需9分鐘轉錄時間，準確度平均在95%以上，透過替代規則，準確率可達99%，不唬爛。
-6. 錄音筆建議預設錄製WAV檔，精度確實優於MP3檔。WAV檔(192K&256K)大概是音質影響精度的極限，再大則無用。
+4. 本專案(按範例模型)實測3小時音頻文件(WAV檔，同常大小約300MB)的轉錄任務約需9分鐘轉錄時間，準確度平均在90%以上，再透過gemini校正，準確率可達99%，不唬爛。
+5. 錄音筆建議預設錄製WAV/flac檔，精度確實優於MP3檔。WAV檔(192K&256K)大概是音質影響精度的極限，再大則無用。
 
 ```python
-from faster_whisper import WhisperModel
-import datetime
-import os
-import logging
-import concurrent.futures
-from typing import List, Tuple
+# ---------- import字典 ----------
+from faster_whisper import WhisperModel, BatchedInferencePipeline
+import datetime, time, os, re, torch, glob
+from typing import List, Tuple, Dict
+import concurrent.futures, threading
 
-# 配置 Logging
-logging.basicConfig()
-logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
+# ---------- 可調參數 ----------
+MODEL_PATH = "/kaggle/input/faster-whisper..."
+AUDIO_ROOT = "/kaggle/input"            # 只改這裡就能換資料來源
+AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")   # 允許的音檔副檔名
+SEGMENT_DURATION = 30.0                          # 每段最長秒數
+BATCH_SIZE = 8
+MAX_CONCURRENCY_PER_GPU = 2                     # 同張卡並行上限
+REPLACEMENTS: Dict[str, str] = {                # 常見錯字修正表
+    "XX": "OO" 
+}
+INITIAL_PROMPT = "XXX"                      # 給模型的 system prompt（可留空）
 
-import concurrent.futures
-from typing import List, Tuple
+# ---------- 自動收集音檔 ----------
+def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
+    """
+    遞迴走訪 root 底下所有子目錄，
+    只要檔名副檔名（不論大小寫）符合 exts，就收進來。
+    """
+    exts_lower = {e.lower() for e in exts}
+    files = []
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            ext = os.path.splitext(fn)[1].lower()
+            if ext in exts_lower:
+                files.append(os.path.join(dirpath, fn))
+    return sorted(files)
 
-# 設定常量
-MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/transformers/default/1"
-SEGMENT_DURATION = 30.0
-MAX_WORKERS = 2
+# ---------- 建立 (音檔, 輸出檔, GPU index) 對照表 ----------
+def create_job_table(audio_files: List[str], gpu_count: int) -> List[Tuple[str, str, int]]:
+    jobs = []
+    for idx, path in enumerate(audio_files, start=1):
+        out_name = f"{idx:02d}.txt"
+        gpu_idx = idx % gpu_count  # round‑robin
+        jobs.append((path, out_name, gpu_idx))
+    return jobs
 
-# 定義多個音頻文件
-files: List[Tuple[str, str, int]] = [
-    ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
-    ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
-]
+# ---------- 取代/清洗工具 ----------
+pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS.keys()))
+def clean_text(txt: str) -> str:
+    txt = txt.lstrip("! ")
+    return pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
 
-def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
-    # 使用傳入的模型進行轉錄(initial_prompt某種程度上有熱詞功能，也可以試試加入常用詞)
-    segments, info = model.transcribe(
-        input_file, 
-        word_timestamps=True, 
-        initial_prompt="繁體中文",
-        beam_size=5, 
-        language="zh", 
-        max_new_tokens=192, 
-        condition_on_previous_text=False,
-        vad_filter=True, 
-        vad_parameters=dict(min_silence_duration_ms=300)
-    )
-    
-    process_segments(segments, output_file, segment_duration)
+def to_timestamp(sec: float) -> str:
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
-def process_segments(segments, output_file: str, segment_duration: float) -> None:
-    # 處理轉錄的段落
-    txt_content = ""
-    current_segment_start = 0.0
-    current_segment_text = ""
+def fmt_chunk(start: float, end: float, txt: str) -> str:
+    return f"{to_timestamp(start)}-{to_timestamp(end)} {txt.strip()}\n"
 
-    for segment in segments:
-        start_time, end_time = segment.start, segment.end
-        text = replace_special_chars(segment.text)
-        
-        current_segment_text += " " + text
+# ---------- 轉錄 + 寫檔 ----------
+def process_segments(segments, outfile: str, max_len=SEGMENT_DURATION):
+    buf, chunk_start, chunk_txt = "", 0.0, ""
+    for seg in segments:
+        chunk_txt += " " + clean_text(seg.text)
+        if seg.end - chunk_start >= max_len:
+            line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+            print(line, end="", flush=True)
+            buf += line
+            chunk_start, chunk_txt = seg.end, ""
+    if chunk_txt:
+        line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+        print(line, end="", flush=True)
+        buf += line
+    with open(outfile, "w", encoding="utf‑8") as fh:
+        fh.write(buf)
+    print(f" ✔ 已寫入 {outfile}")
 
-        if float(end_time) - float(current_segment_start) >= segment_duration:
-            formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
-            print(formatted_segment)
-            txt_content += formatted_segment
-            
-            current_segment_start = float(end_time)
-            current_segment_text = ""
-    
-    # 處理最後一個段落
-    if current_segment_text:
-        formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
-        print(formatted_segment)
-        txt_content += formatted_segment
-    
-    # 將結果寫入文件
-    with open(output_file, 'w', encoding="utf-8") as txt_file:
-        txt_file.write(txt_content)
-    
-    print(f"已保存: {os.path.abspath(output_file)}")
+def transcribe_single(job, pipelines, semaphores):
+    in_path, out_path, gpu_idx = job
+    sem = semaphores[gpu_idx]
+    with sem:  # 限制同一張卡的並行數
+        try:
+            segments, _info = pipelines[gpu_idx].transcribe(
+                in_path,
+                batch_size=BATCH_SIZE,
+                word_timestamps=True,
+                hallucination_silence_threshold=3,
+                initial_prompt=INITIAL_PROMPT or None,
+                beam_size=5,
+                temperature=0,
+                patience=1.5,
+                language="zh",
+                max_new_tokens=256,
+                condition_on_previous_text=False,
+                no_repeat_ngram_size=3,
+                vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 250, "speech_pad_ms": 600},
+                log_progress=True,
+            )
+            process_segments(segments, out_path)
+        except Exception as exc:
+            print(f" ✘ 轉錄失敗: {in_path} ({exc})")
 
-def format_segment(start_time: float, end_time: float, text: str) -> str:
-    # 格式化單個段落
-    start_time_str = format_to_custom_timestamp(start_time)
-    end_time_str = format_to_custom_timestamp(end_time)
-    return f"{start_time_str}-{end_time_str} {text.strip()}\n"
-
-def replace_special_chars(text: str) -> str:
-    # 替換特殊字符和糾正常見錯誤
-    if text.startswith(("! ", " ")):
-        text = text.lstrip("! ")
-    
-    replacements = {
-        "XX": "OO"
-    }
-    # XX=錯字:OO=正確字
-    for original, replacement in replacements.items():
-        text = text.replace(original, replacement)
-    
-    return text
-
-def format_to_custom_timestamp(seconds: float) -> str:
-    # 將秒數轉換為自定義時間戳格式
-    dt = datetime.datetime(1, 1, 1) + datetime.timedelta(seconds=seconds)
-    return f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
-
+# ---------- 主流程 ----------
 def main():
-        
-    # 預加載每個設備的模型
-    device_indices = set([device_index for _, _, device_index in files])
-    models = {}
-    for device_index in device_indices:
-        models[device_index] = WhisperModel(
-            MODEL_PATH, device="cuda", device_index=device_index, compute_type="float16"
+    # 1. 檢查 GPU
+    gpu_count = torch.cuda.device_count() or 1   # 沒 GPU 時 fallback CPU
+    if gpu_count > 4:                            # Kaggle 通常 1 張卡；這裡只是保險
+        gpu_count = 4
+    print(f"偵測到 GPU 數量：{gpu_count}")
+    
+    # 2. 掃描音檔
+    audio_files = collect_audio_files(AUDIO_ROOT)
+    if not audio_files:
+        raise RuntimeError(f"找不到任何音檔於 {AUDIO_ROOT}")
+    job_table = create_job_table(audio_files, gpu_count)
+    
+    # 3. 建立每張卡各自的模型與 pipeline
+    pipelines = {}
+    for idx in range(gpu_count):
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        pipelines[idx] = BatchedInferencePipeline(
+            WhisperModel(MODEL_PATH, device=dev, device_index=idx, compute_type="float16")
         )
+        print(f"GPU {idx} 模型初始化完成")
+    
+    # 4. 為每張卡準備 Semaphore，控制並行度
+    semaphores = {idx: threading.Semaphore(MAX_CONCURRENCY_PER_GPU) for idx in range(gpu_count)}
+    
+    # 5. 多執行緒並行轉錄
+    workers = gpu_count * MAX_CONCURRENCY_PER_GPU
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(transcribe_single, job, pipelines, semaphores) for job in job_table]
+        for f in concurrent.futures.as_completed(futures):
+            pass  # 錯誤已在 transcribe_single 內捕捉
+    
+    print("🎉 所有轉錄任務完成")
 
-    # 使用線程池並行處理音頻文件
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # 這裡傳入模型
-        futures = [executor.submit(transcribe_audio, input_file, output_file, device_index, models[device_index]) 
-                   for input_file, output_file, device_index in files]
-
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
-
-    print("所有轉錄任務已完成。")
-
+# Entry
 if __name__ == "__main__":
+    audio_list = collect_audio_files(AUDIO_ROOT)
+    print(f"共找到 {len(audio_list)} 個音檔，前 10 筆：")
+    for p in audio_list[:10]:
+        print("  ", p)
+    tic = time.time()
     main()
+    print(f"總耗時：{time.time() - tic:.1f} 秒")
 ```
 
 ### 合併轉錄文本
-直接複製貼上執行，以上轉錄好的兩個文檔就會直接合併囉~(檔名預設為merged_output.txt)不爽自己改~
+承上代碼，預命名規則為01.txt->02.txt，如需合併請使用以下代碼，確定最底下的組合是否正確，即可按需合併囉~(檔名預設為merged_output.txt)
 ```python
 def merge_transcriptions(file1, file2, output_file):
     def parse_timestamp(timestamp_str):
@@ -302,8 +338,8 @@ def merge_transcriptions(file1, file2, output_file):
 
     print(f"Transcriptions merged and saved to {output_file}")
 
-# 假設已經成功生成了 04.txt 和 05.txt
-merge_transcriptions("04.txt", "05.txt", "merged_output.txt")
+# 假設已經成功生成了 01.txt 和 02.txt
+merge_transcriptions("01.txt", "02.txt", "merged_output.txt")
 ```
 
 ## 貢獻
