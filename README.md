@@ -375,25 +375,20 @@ merge_transcriptions("01.txt", "02.txt", "merged_output.txt")
 
 ## English
 
-### Welcome to **show940125**'s GitHub repository! This project offers media professionals, political workers, and diligent student assistants a solution to overcome the inefficiency of **transcription challenges**. It is a well-designed and user-friendly audio transcription method.
+### A lifesaver for long transcriptions for media professionals, political staff, and hardworking interns.
+### This project provides an efficient, user-friendly solution designed to overcome the inefficiencies of manual **audio transcription**.
 
 ### Why Not Use Colab?
+1.  **GPU Limitations and Instability:** While mounting Google Drive can simplify usage, the core bottleneck for transcription tasks remains GPU availability and stability, which can be inconsistent on Colab.
+2.  **Leveraging Free Resources:** This project utilizes the two free T4 GPUs provided by the Kaggle platform, significantly boosting transcription efficiency for various tasks. **[Update]** **The new code automatically detects the number of available GPUs and distributes tasks accordingly.**
+3.  **Kaggle's Advantage:** Kaggle is a free machine learning platform offering 30 hours of free GPU time per week. Compared to the unpredictable nature of Colab, this is generally sufficient for routine transcription work.
 
-1. **GPU Availability and Stability**: Colab imposes limitations and instability in accessing GPUs. Even though mounting Google Drive can simplify the workflow, the core of transcription tasks relies heavily on GPU performance.
-2. **Maximizing Free Resources**: To fully utilize all available free resources, this project leverages Kaggle's two free T4 GPUs, significantly enhancing transcription efficiency and enabling you to effortlessly complete various transcription tasks.
-3. **Reliable Free GPU Access**: Kaggle is a free machine learning platform that offers 30 hours of free GPU usage each week. Compared to the unreliable nature of Colab, Kaggle's offerings are more than sufficient to meet daily work requirements.
+### Having moved on from political work, I'm unsure who might find this project (as people in such roles rarely browse GitHub). However, driven by a desire to help successors avoid pitfalls from my previous job, I've refined this codebase to a near-stable state. I might consult GPT for further optimization possibilities~ **[Update]** **The new code integrates Batch Processing and finer-grained parallel control for higher efficiency.**
 
-### Personal Note
+### While faster demos exist online (e.g., WhisperJAX, Whisper WebGPU, even Groq API), they often lack support for custom models or large audio files (typically struggling with files over 25MB, roughly equivalent to a 30-minute low-bitrate MP3).
 
-Having moved away from a career in political work, I understand that individuals in such roles might not frequently visit GitHub. My dedication to helping future generations avoid the pitfalls of my previous job is the driving force behind this project. The current codebase is nearing stability, and any potential optimizations will be explored with the help of GPT in the future.
-
-### Existing Online Demos
-
-There are faster demos available online, such as whisperJAX, Whisper Web GPU, and even Groq API. However, these solutions lack the ability to use customized models and cannot handle larger audio files (typically over 25MB or approximately 30 minutes of low-bitrate MP3 files) easily.
-
-### ☆ A Gift for the Worthy~
-
-This entire setup is currently free of charge, and that is the point.
+### ☆ A gift to those destined to find it ~ The entire setup is currently free ~
+### ~~☆ Added: **FW1.1.1 with Batched pipeline full code (2024/11/22)~~ **[Update]** **The current code integrates `BatchedInferencePipeline` and offers a more complete automated processing workflow (2025/04/22).**
 
 ## Table of Contents
 
@@ -401,318 +396,542 @@ This entire setup is currently free of charge, and that is the point.
 - [Technical Highlights](#technical-highlights)
 - [Installation and Setup](#installation-and-setup)
 - [Usage](#usage)
-- [Code Examples](#code-examples)
+- [Example Code](#example-code)
 - [Contributing](#contributing)
 - [License](#license)
-- [Third-Party Licensing](#third-party-licensing)
+- [Third-Party Licenses](#third-party-licenses)
 - [Acknowledgements](#acknowledgements)
 - [Contact](#contact)
 
 ## Features
 
-1. **Dual GPU Parallel Processing and Merging Functionality Expansion**
-   - **Dual GPU Parallel Processing**: Supports simultaneous processing of two audio files using dual T4 GPUs, significantly enhancing transcription efficiency.
-   - **Transcription Text Merging and Timestamp Continuity**: Merges multiple transcription results into a single file with automatic timestamp continuation, ensuring a continuous timeline.
+1.  **[Update]** **Automated Multi-GPU Parallel Processing**
+    *   **Automatic GPU Detection and Assignment**: Automatically detects the number of available T4 GPUs in the Kaggle environment (supports up to 4) and assigns audio files to different GPUs using a Round-Robin strategy.
+    *   **Batch Inference**: Utilizes `BatchedInferencePipeline` to process multiple transcription requests in batches, significantly improving GPU utilization and overall throughput.
+    *   **Per-GPU Concurrency Control**: Allows setting the maximum number of concurrent tasks per GPU (`MAX_CONCURRENCY_PER_GPU`) to prevent overloading individual GPUs and ensure stable operation.
+    *   **Transcript Merging and Continuous Timestamps**: Merges results from multiple transcriptions into a single file, automatically adjusting timestamps to ensure a continuous timeline.
 
-2. **Model Localization and Loading Optimization**
-   - **Pre-downloaded Model and Local Loading**: Pre-download models compatible with `faster-whisper` and upload them to Kaggle's module to avoid re-downloading each run, improving preheat speed.
+2.  **Model Localization and Loading Optimization**
+    *   **Pre-downloading Models and Local Loading**: Download `faster-whisper` compatible models beforehand and upload them to Kaggle Datasets or Models. This avoids re-downloading during each run, speeding up initialization.
+    *   **[New]** **Independent Model Loading per GPU**: Loads a separate model instance for each detected GPU, ensuring smooth parallel processing.
 
-3. **Text Segmentation and Printing Optimization**
-   - **Fixed Time Interval Segmentation**: Segments text based on fixed 30-second intervals to enhance readability.
-   - **Hybrid Natural and Fixed Segmentation**: Combines natural sentence segmentation with fixed time intervals to maintain sentence coherence and paragraph readability.
+3.  **Transcript Segmentation and Printing Optimization**
+    *   **Fixed Time Interval Segmentation**: Segments the transcript based on a configurable `SEGMENT_DURATION` (default: 30 seconds) interval, enhancing context readability and facilitating subsequent proofreading.
+    *   **Real-time Progress Printing**: Prints timestamped text segments to the console during transcription for real-time progress monitoring. **[New]**
+    *   **Post-correction with Gemini**: Leverage Google AI Studio's free Gemini 1.5 Flash/Pro models for high-accuracy proofreading. Multiple tests have verified that correcting chunks of approximately 6500 tokens balances stable quality and efficiency.
 
-4. **Resolution of Repeated Sentences Issue**
-   - **Corrected Paragraph Accumulation and Clearing Logic**: Prevents the occurrence of repeated sentences, ensuring clean text output.
+4.  **[Update]** **Usability and Error Handling**
+    *   **Automatic Audio File Scanning**: Automatically scans recursively for all audio files (supports `.wav`, `.flac`, `.mp3`, `.ogg`, etc.) within the specified root directory (`AUDIO_ROOT`), eliminating the need to manually specify each file.
+    *   **Automatic Output Naming**: Automatically generates output filenames like `01.txt`, `02.txt`, etc., based on the order of scanned audio files.
+    *   **Centralized Parameter Management**: Consolidates frequently used parameters (model path, audio root directory, batch size, concurrency level, replacements, etc.) at the beginning of the code for easy modification.
+    *   **Error Handling for Individual Files**: Implements error catching for the transcription process of single files, preventing the entire program from crashing due to one failed file.
 
-5. **Timestamp Position and Format Adjustment**
-   - **Timestamps at the Beginning of Paragraphs**: Standardizes timestamp format, ensuring each paragraph's timestamp is at the very beginning of the text.
+5.  **Timestamp Position and Format Adjustment**
+    *   **Timestamp at the Beginning of Segment**: Standardizes the timestamp format (`HH:MM:SS-HH:MM:SS`) and places it at the very beginning of each text segment.
 
 ## Technical Highlights
 
-- **Dual GPU Parallel Processing**: Fully utilizes Kaggle’s two T4 GPUs, doubling transcription efficiency.
-- **Efficient Multithreading**: Implements multithreading using `concurrent.futures.ThreadPoolExecutor` to maximize GPU resource utilization.
-- **Optimized Model Loading**: Localizes `faster-whisper` compatible models on Kaggle, avoiding repeated downloads and reducing preparation time to under 1 minute.
-- **Flexible Text Segmentation**: Supports both fixed time interval and natural sentence segmentation methods to improve transcription text readability.
-- **Automated Transcription Merging**: Automatically continues timestamps to ensure a continuous timeline across multiple transcription files.
+- **[Update]** **Efficient Batch Inference**: Leverages `BatchedInferencePipeline` for high-throughput batch processing, maximizing GPU utilization.
+- **[Update]** **Automated Multi-GPU Management**: Automatically detects and utilizes all available GPUs (up to 4), intelligently distributing tasks.
+- **[Update]** **Fine-grained Concurrency Control**: Uses `threading.Semaphore` to manage the number of concurrent tasks per GPU, balancing efficiency and stability.
+- **[Update]** **Automated File Handling**: Automatically scans audio files and names output files, simplifying the workflow.
+- **Efficient Multi-threading**: Employs `concurrent.futures.ThreadPoolExecutor` for effective multi-threaded scheduling. ~~Testing showed multi-processing was less efficient than multi-threading (2024/12/11, FW=1.1.0).~~ **[Note]** **The new code still uses multi-threading, combined with Semaphores for concurrency control.**
+- **Optimized Model Loading**: Uploading `faster-whisper` compatible models to Kaggle avoids repeated downloads, reducing the preparation time before transcription tasks.
+- **Flexible Text Segmentation**: Supports segmentation by a fixed time interval (`SEGMENT_DURATION`), improving the readability of the transcribed text.
+- **Automated Transcript Merging**: Automatically adjusts and continues timestamps, ensuring a coherent timeline across merged transcription files.
 
 ## Installation and Setup
 
 ### Environment Requirements
 - **Python Version**: 3.8+
-- **Platform**: Kaggle (pre-configured environment)
-- **Hardware**: Two T4 GPUs (provided free by Kaggle)
+- **Platform**: Kaggle (Kaggle typically pre-configures the necessary environment)
+- **Hardware**: Two T4 GPUs (Provided for free by Kaggle)
 
 ### Running Steps
 
-#### 1. Install Required Python Packages
+#### 1. Install Necessary Python Packages
 
-In a new Kaggle Notebook, execute the following command to install the `faster-whisper` package (approximately 20 seconds):
+In a new Kaggle Notebook, execute the following command to install the `faster-whisper` package (takes about 20 seconds):
+#### 2024/10/26 **Update**: The latest version of `ctranslate2` seems to have CUDA compatibility issues. Currently handled by reverting to an older version.
+#### 2024/12/11 **Update**: ~~Issue seems resolved in FW1.1.0, `ctranslate2==4.4.0` might be removable.~~
+#### 2025/04/22 **Update**: Under FW1.1.1, due to platform environment dependency versions, `ctranslate2==4.4.0` is still required. **[Note]**: The platform environment is currently unstable; reverting to an environment from last year or waiting for updates is recommended.
 
 ```python
-%%time
-pip install faster-whisper==1.1.1
+# Install faster-whisper and pin ctranslate2 version for compatibility
+!pip install faster-whisper==1.1.1 ctranslate2==4.4.0 -q
+# Use -q for quiet installation
 ```
 
-#### 2. Upload Model to Kaggle and Load in Notebook
+#### 2. Upload the Model to Kaggle and Load it in the Notebook
 
 Next, download the `faster-whisper` model from Hugging Face and upload it to Kaggle. Follow these steps:
 
-1. **Visit the Hugging Face Model Page**: Example [faster-whisper-large-v2-zh-TW](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW)
-2. **Download Model Files**: Click the **Files and versions** button on the page to download all model files to your local computer.
-3. **Upload to Kaggle**:
-   - Login to Kaggle and click **Create** > **Create New Model**.
-   - Name the model, for example, `faster-whisper-large-v2-zh-TW`.
-   - Upload all downloaded files to the model's directory.
-   - After uploading, click **Create** to complete the model upload to Kaggle.
-4. **Add Model to Notebook**:
-   - When first using the project, click **Add Input** under the "Input" section, select **Models**, and locate your uploaded model under "your work".
-   - Once added, the notebook will automatically load the model. (Applause~)
+1.  Go to the Hugging Face model page, for example: [faster-whisper-large-v2-zh-TW](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW)
+2.  Click the **Files and versions** button on the page and download all model files to your local computer.
+3.  Log in to Kaggle, click **Create** in the header, and select **Create New Model**.
+4.  When creating the new model, give it a name, e.g., `faster-whisper-large-v2-zh-TW`.
+5.  Upload all the downloaded files into this model's directory.
+6.  Once uploaded, click the **Create** button to finish uploading the model to Kaggle.
+7.  When using the project for the first time, click "Add input" under the "Input" section on the right panel. Select "Models" and then "Your Work" to find the model you just uploaded. Subsequently, starting the notebook will automatically load it (Applause!).
 
-**Note**: The `largeV3` model is 10%–20% faster than `largeV2` in transcription speed, but the `largeV2` model fine-tuned for Chinese offers better accuracy. The provided example uses one of the most accurate versions available.
+Note: Models fine-tuned from large-v3 might offer 10-20% faster transcription speeds than large-v2 based models. However, models fine-tuned from large-v2 generally adapt better to Chinese. The example model provided is one of the best in terms of accuracy.
 
-#### 3. Upload Audio Files to Kaggle and Load in Notebook
+#### 3. [Update] Upload Audio Files to Kaggle Dataset
 
-1. **Split Audio Files**: Divide your audio files in half using tools like `ffmpeg` or any audio editing software.
-2. **Upload to Dataset**: Similar to uploading the model, but select **Dataset**. You can upload multiple audio files within the same dataset.
-3. **Import Audio Files into Notebook**:
-   - In the notebook, click **Add Input** to import the audio files, following the same method as uploading the model.
-4. **Copy Audio File Paths**: **Important**: In the subsequent code, copy (Ctrl + C) the paths of the audio files to the designated locations.
+1.  Optionally, split your audio files into manageable parts using tools like ffmpeg or CapCut (剪映). This is useful if you have very long recordings, although the current script handles full files well. The original text suggested splitting in half, likely for the older 2-GPU manual setup, but with auto-distribution, this might be less critical unless files are extremely large or you want finer control.
+2.  Similar to uploading the model, create a new Kaggle **Dataset**. You can upload multiple audio files into the same dataset.
+3.  When using the notebook, click "Add input" and import the dataset containing your audio files, just like you did for the model.
+4.  The code will automatically detect the audio files within the specified input path; no manual path specification per file is needed.
 
 ## Usage
 
-In a new Kaggle Notebook, follow the steps below by executing the provided code blocks.
+In a new Kaggle notebook, execute the following code blocks step-by-step. It's designed to be straightforward!
 
-## Code Examples
-(Copy and paste the code blocks, make adjustments as needed)
+## Example Code
+(Just copy and paste the code blocks. Only modify where indicated.)
 
-### Transcribing Audio Files
-
-1. **Set `MODEL_PATH`**: Copy the path of your input Whisper model (simply click COPY).
-2. **Other Parameters**: These have been validated through over 300 hours of transcription tasks and generally do not require adjustments.
-3. **Replacements**: The `replacements` section (use Ctrl + F to find) provides a better experience for fixed transcription tasks (e.g., transcribing the same speaker multiple times). Directly replace fixed misspelled words with correct ones in the format `"incorrect_word": "correct_word"`.
-4. **Audio Path Settings**: Set the audio paths in the two paths under `def main():`, with the first path at the top and the second at the bottom. The resulting two TXT files are preset as `04.txt` and `05.txt`. Due to the need for subsequent merging, renaming is not recommended; otherwise, rename synchronously during merging.
-5. **Performance**: This project (using the example model) has been tested with a 3-hour audio file (WAV format, approximately 300MB). The transcription task takes about 9 minutes, with an average accuracy above 95% in chinese. Through replacement rules, accuracy can reach 99%, no exaggeration.
-6. **Recording Recommendations**: It is recommended to use WAV files for transcrbing, as they offer better accuracy than MP3 files. WAV files (192K & 256K) are approximately the limit of audio quality affecting accuracy; larger files are ineffective.
+### Transcribe Audio Files
+1.  **Important:** Set `MODEL_PATH = "copy the path of your input whisper model here (just click COPY path)"`.
+2.  Other parameters have been validated through over 300 hours of actual transcription tasks and generally don't need adjustment.
+3.  The `replacements` dictionary (find using Ctrl+F) is useful for consistent tasks (e.g., transcribing the same speaker multiple times) by automatically correcting common misrecognitions. Format is `"incorrect word": "correct word",`.
+4.  Based on internal testing (using the example model), transcribing a 3-hour audio file (WAV format, typically around 300MB) takes approximately 9 minutes, with an average accuracy above 90%. Post-correction with Gemini can increase accuracy to 99% – no exaggeration.
+5.  It's recommended to record audio in WAV or FLAC format by default, as their precision is indeed superior to MP3. WAV files at 192kbps or 256kbps seem to hit the sweet spot for quality influencing accuracy; higher bitrates yield diminishing returns.
 
 ```python
-from faster_whisper import WhisperModel
-import datetime
-import os
-import logging
-import concurrent.futures
-from typing import List, Tuple
+# ---------- Imports ----------
+from faster_whisper import WhisperModel, BatchedInferencePipeline
+import datetime, time, os, re, torch, glob
+from typing import List, Tuple, Dict
+import concurrent.futures, threading
 
-# Configure Logging
-logging.basicConfig()
-logging.getLogger("faster_whisper").setLevel(logging.DEBUG)
+# ---------- Adjustable Parameters ----------
+MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/faster-whisper-large-v2-zh-TW" # Example path, REPLACE with your actual model path
+AUDIO_ROOT = "/kaggle/input"            # Root directory for audio files (change this to switch data sources)
+AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")   # Allowed audio file extensions
+SEGMENT_DURATION = 30.0                          # Maximum duration per segment in seconds
+BATCH_SIZE = 8                                   # Batch size for inference
+MAX_CONCURRENCY_PER_GPU = 2                     # Max concurrent tasks per GPU
+REPLACEMENTS: Dict[str, str] = {                # Common typo correction table
+    "misspoken": "correct word",                # Example: "misspoken": "spoken correctly"
+    "XX": "OO"                                  # Placeholder from original
+}
+INITIAL_PROMPT = "Transcribe the speech accurately." # System prompt for the model (can be empty or customized, e.g., for specific terms)
 
-import concurrent.futures
-from typing import List, Tuple
+# ---------- Auto-collect Audio Files ----------
+def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
+    """
+    Recursively walks through all subdirectories under 'root'.
+    Collects files whose extensions (case-insensitive) match 'exts'.
+    Returns a sorted list of found file paths.
+    """
+    exts_lower = {e.lower() for e in exts} # Convert extensions to lowercase for case-insensitive matching
+    files = []
+    print(f"[*] Searching for audio files in: {root} with extensions: {exts}")
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            # Check file extension
+            ext = os.path.splitext(fn)[1].lower()
+            if ext in exts_lower:
+                full_path = os.path.join(dirpath, fn)
+                files.append(full_path)
+                # print(f"    Found: {full_path}") # Uncomment for verbose file listing
+    print(f"[*] Found {len(files)} audio files.")
+    return sorted(files) # Sort files for consistent processing order
 
-# Set constants
-MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/transformers/default/1"
-SEGMENT_DURATION = 30.0
-MAX_WORKERS = 2
+# ---------- Create (Audio File, Output File, GPU Index) Job Table ----------
+def create_job_table(audio_files: List[str], gpu_count: int) -> List[Tuple[str, str, int]]:
+    """
+    Creates a list of jobs, where each job is a tuple containing:
+    (input_audio_path, output_text_path, assigned_gpu_index).
+    Assigns GPUs in a round-robin fashion.
+    Output filenames are generated as '01.txt', '02.txt', ...
+    """
+    jobs = []
+    for idx, path in enumerate(audio_files, start=1):
+        # Generate output filename based on index (e.g., 01.txt, 02.txt)
+        out_name = f"{idx:02d}.txt"
+        # Assign GPU index using modulo operator for round-robin distribution
+        gpu_idx = (idx - 1) % gpu_count # Use (idx-1) for 0-based GPU indexing
+        jobs.append((path, out_name, gpu_idx))
+        print(f"    Job {idx}: {os.path.basename(path)} -> {out_name} (GPU {gpu_idx})")
+    return jobs
 
-# Define multiple audio files
-files: List[Tuple[str, str, int]] = [
-    ("/kaggle/input/ccl07-08/CLL08_part1.wav", "04.txt", 0),
-    ("/kaggle/input/ccl07-08/CLL08_part2.wav", "05.txt", 1)
-]
+# ---------- Replacement/Cleaning Utilities ----------
+# Compile a regex pattern for efficient replacement of multiple keywords
+# re.escape is used to handle special characters in keys correctly
+pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS.keys()))
 
-def transcribe_audio(input_file: str, output_file: str, device_index: int, model, segment_duration: float = SEGMENT_DURATION) -> None:
-    # Use the provided model to transcribe
-    segments, info = model.transcribe(
-        input_file, 
-        word_timestamps=True, 
-        initial_prompt=None,
-        beam_size=4, 
-        language="zh", 
-        max_new_tokens=192, 
-        condition_on_previous_text=False,
-        vad_filter=True, 
-        vad_parameters=dict(min_silence_duration_ms=300)
-    )
-    
-    process_segments(segments, output_file, segment_duration)
+def clean_text(txt: str) -> str:
+    """
+    Cleans the transcribed text:
+    1. Removes leading exclamation marks or spaces.
+    2. Applies predefined replacements from the REPLACEMENTS dictionary.
+    """
+    # Strip leading noise characters sometimes introduced by Whisper
+    txt = txt.lstrip("! ")
+    # Perform replacements using the precompiled regex pattern
+    return pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
 
-def process_segments(segments, output_file: str, segment_duration: float) -> None:
-    # Process transcription segments
-    txt_content = ""
-    current_segment_start = 0.0
-    current_segment_text = ""
+def to_timestamp(sec: float) -> str:
+    """Converts seconds (float) to HH:MM:SS format string."""
+    # Ensure non-negative time
+    sec = max(0, sec)
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
-    for segment in segments:
-        start_time, end_time = segment.start, segment.end
-        text = replace_special_chars(segment.text)
-        
-        current_segment_text += " " + text
+def fmt_chunk(start: float, end: float, txt: str) -> str:
+    """Formats a text chunk with start and end timestamps."""
+    # Format: "HH:MM:SS-HH:MM:SS Text content\n"
+    return f"{to_timestamp(start)}-{to_timestamp(end)} {txt.strip()}\n"
 
-        if float(end_time) - float(current_segment_start) >= segment_duration:
-            formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
-            print(formatted_segment)
-            txt_content += formatted_segment
-            
-            current_segment_start = float(end_time)
-            current_segment_text = ""
-    
-    # Handle the last segment
-    if current_segment_text:
-        formatted_segment = format_segment(current_segment_start, end_time, current_segment_text)
-        print(formatted_segment)
-        txt_content += formatted_segment
-    
-    # Write the result to file
-    with open(output_file, 'w', encoding="utf-8") as txt_file:
-        txt_file.write(txt_content)
-    
-    print(f"Saved: {os.path.abspath(output_file)}")
+# ---------- Transcribe + Write File ----------
+def process_segments(segments, outfile: str, max_len=SEGMENT_DURATION):
+    """
+    Processes transcribed segments, groups them into chunks based on max_len,
+    formats them with timestamps, prints them to console, and writes to outfile.
+    """
+    buf = ""            # Buffer to store formatted lines for writing to file
+    chunk_start = 0.0   # Start time of the current chunk being accumulated
+    chunk_txt = ""      # Accumulated text for the current chunk
+    last_seg_end = 0.0  # Keep track of the end time of the last segment processed
 
-def format_segment(start_time: float, end_time: float, text: str) -> str:
-    # Format a single segment
-    start_time_str = format_to_custom_timestamp(start_time)
-    end_time_str = format_to_custom_timestamp(end_time)
-    return f"{start_time_str}-{end_time_str} {text.strip()}\n"
+    print(f"[*] Processing segments for: {outfile}")
+    for i, seg in enumerate(segments):
+        # Accumulate cleaned text from the segment
+        cleaned_segment_text = clean_text(seg.text)
+        chunk_txt += " " + cleaned_segment_text
+        last_seg_end = seg.end # Update the end time
 
-def replace_special_chars(text: str) -> str:
-    # Replace special characters and correct common errors
-    if text.startswith(("! ", " ")):
-        text = text.lstrip("! ")
-    
-    replacements = {
-        "XX": "OO", 
-    }
-    
-    for original, replacement in replacements.items():
-        text = text.replace(original, replacement)
-    
-    return text
+        # If the current chunk duration exceeds max_len, format and store it
+        if seg.end - chunk_start >= max_len:
+            line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+            print(line.strip()) # Print formatted chunk to console (strip trailing newline)
+            buf += line         # Add formatted chunk to the file buffer
+            chunk_start = seg.end # Start the new chunk from the end of this segment
+            chunk_txt = ""      # Reset the text for the new chunk
 
-def format_to_custom_timestamp(seconds: float) -> str:
-    # Convert seconds to custom timestamp format
-    dt = datetime.datetime(1, 1, 1) + datetime.timedelta(seconds=seconds)
-    return f"{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
+    # Process any remaining text that didn't form a full chunk
+    if chunk_txt.strip():
+        # Use the end time of the very last segment for the final chunk
+        line = fmt_chunk(chunk_start, last_seg_end, chunk_txt)
+        print(line.strip()) # Print the final chunk
+        buf += line         # Add the final chunk to the buffer
 
+    # Write the entire buffered content to the output file
+    try:
+        with open(outfile, "w", encoding="utf-8") as fh:
+            fh.write(buf)
+        print(f" ✔ Successfully wrote transcription to {outfile}")
+    except Exception as e:
+        print(f" ✘ Error writing to file {outfile}: {e}")
+
+
+def transcribe_single(job, pipelines, semaphores):
+    """
+    Transcribes a single audio file using the assigned GPU and pipeline.
+    Uses a semaphore to limit concurrency on the assigned GPU.
+    Handles potential errors during transcription.
+    """
+    in_path, out_path, gpu_idx = job
+    sem = semaphores[gpu_idx] # Get the semaphore for the assigned GPU
+
+    print(f"[*] Acquiring semaphore for GPU {gpu_idx} for file: {os.path.basename(in_path)}")
+    with sem:  # Acquire semaphore - this blocks if concurrency limit is reached
+        print(f"[*] Starting transcription on GPU {gpu_idx} for: {os.path.basename(in_path)}")
+        try:
+            # Perform transcription using the BatchedInferencePipeline
+            # Note: BatchedInferencePipeline handles batching internally if multiple requests arrive concurrently
+            segments, _info = pipelines[gpu_idx].transcribe(
+                in_path,
+                batch_size=BATCH_SIZE,                      # Max batch size for this specific call
+                word_timestamps=True,                       # Enable word-level timestamps (useful for detailed analysis)
+                hallucination_silence_threshold=3,          # Threshold for VAD to filter hallucinations
+                initial_prompt=INITIAL_PROMPT or None,      # Provide initial prompt if set
+                # --- Decoding options ---
+                beam_size=5,                                # Beam size for beam search decoding
+                temperature=0,                              # Temperature for sampling (0 means greedy decoding)
+                patience=1.5,                               # Beam search patience factor
+                language="zh",                              # Specify language (change if needed, e.g., 'en')
+                # max_new_tokens=256,                       # Max tokens per segment (adjust if needed)
+                condition_on_previous_text=False,           # Improves consistency but can cause repetition
+                # no_repeat_ngram_size=3,                     # Prevent repeating n-grams
+                # --- VAD filter options ---
+                vad_filter=True,                            # Enable Voice Activity Detection filter
+                vad_parameters={"min_silence_duration_ms": 250, "speech_pad_ms": 600}, # VAD tuning
+                # --- Progress logging ---
+                # log_progress=True,                          # faster-whisper internal progress bar (can be verbose)
+            )
+            # Process the generated segments into the desired output format
+            process_segments(segments, out_path, max_len=SEGMENT_DURATION)
+        except Exception as exc:
+            # Catch and report errors for this specific file
+            print(f" ✘ Transcription failed for: {in_path} on GPU {gpu_idx}. Error: {exc}")
+        finally:
+            # Release semaphore implicitly upon exiting the 'with' block
+            print(f"[*] Released semaphore for GPU {gpu_idx} (File: {os.path.basename(in_path)})")
+
+
+# ---------- Main Workflow ----------
 def main():
-        
-    # Preload models for each device
-    device_indices = set([device_index for _, _, device_index in files])
-    models = {}
-    for device_index in device_indices:
-        models[device_index] = WhisperModel(
-            MODEL_PATH, device="cuda", device_index=device_index, compute_type="float16"
-        )
+    """Main function orchestrating the transcription process."""
+    # 1. Check GPU availability
+    # Default to 1 (CPU) if no CUDA GPUs are found
+    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 1
+    # Limit to a maximum of 4 GPUs (as per Kaggle's typical T4x2/T4x4 setup and feature description)
+    if gpu_count > 4:
+        print(f"[*] Detected {gpu_count} GPUs, but limiting to 4 for this setup.")
+        gpu_count = 4
+    elif not torch.cuda.is_available():
+         print(f"[*] No CUDA GPU detected. Falling back to CPU (will be slow).")
+         gpu_count = 1 # Ensure gpu_count is 1 if falling back to CPU
+    else:
+        print(f"[*] Detected {gpu_count} CUDA GPU(s).")
+        # Print GPU names for verification
+        for i in range(gpu_count):
+            print(f"    GPU {i}: {torch.cuda.get_device_name(i)}")
 
-    # Use thread pool to process audio files in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Pass the models here
-        futures = [executor.submit(transcribe_audio, input_file, output_file, device_index, models[device_index]) 
-                   for input_file, output_file, device_index in files]
+    # 2. Scan for audio files
+    audio_files = collect_audio_files(AUDIO_ROOT, AUDIO_EXTS)
+    if not audio_files:
+        raise RuntimeError(f"No audio files found matching {AUDIO_EXTS} in {AUDIO_ROOT} or its subdirectories.")
+    # Create the job table distributing files across GPUs
+    print("[*] Creating job table...")
+    job_table = create_job_table(audio_files, gpu_count)
 
-        for future in concurrent.futures.as_completed(futures):
-            future.result()
+    # 3. Initialize model and pipeline for each GPU
+    pipelines = {} # Dictionary to hold pipeline instances, keyed by GPU index
+    semaphores = {} # Dictionary to hold semaphores, keyed by GPU index
+    print("[*] Initializing models and pipelines for each device...")
+    for idx in range(gpu_count):
+        # Determine device: 'cuda' if GPUs available, otherwise 'cpu'
+        dev = f"cuda:{idx}" if torch.cuda.is_available() else "cpu"
+        device_index = idx if torch.cuda.is_available() else 0 # device_index is 0 for CPU
 
-    print("All transcription tasks are completed.")
+        print(f"    Initializing model on device: {dev} (Index: {device_index})")
+        try:
+            # Load the Whisper model onto the specified device
+            model = WhisperModel(
+                MODEL_PATH,
+                device=dev.split(':')[0], # 'cuda' or 'cpu'
+                device_index=device_index,
+                compute_type="float16" # Use float16 for T4 GPUs for speed and efficiency
+            )
+            # Create a BatchedInferencePipeline for this model instance
+            pipelines[idx] = BatchedInferencePipeline(model)
+            # Create a semaphore for this GPU to control concurrent tasks
+            semaphores[idx] = threading.Semaphore(MAX_CONCURRENCY_PER_GPU)
+            print(f"    GPU {idx} ({dev}) model and pipeline initialized. Concurrency limit: {MAX_CONCURRENCY_PER_GPU}.")
+        except Exception as e:
+            print(f" ✘ Failed to initialize model on GPU {idx}: {e}")
+            # Handle initialization failure (e.g., exit or try fallback)
+            # For simplicity here, we'll let it potentially fail later if a job needs this GPU
+            # A more robust solution might remove this GPU from the pool or retry
 
+    # Check if any pipelines were successfully created
+    if not pipelines:
+        raise RuntimeError("Failed to initialize any models/pipelines. Cannot proceed.")
+    if len(pipelines) < gpu_count:
+         print("[!] Warning: Failed to initialize models on all detected GPUs. Proceeding with available ones.")
+         # Adjust gpu_count and job_table if necessary, or let jobs fail if assigned to bad GPU
+         # Simple approach: let jobs fail if their assigned GPU init failed.
+
+    # 4. Use ThreadPoolExecutor for parallel transcription
+    # Number of worker threads = total concurrency across all GPUs
+    workers = gpu_count * MAX_CONCURRENCY_PER_GPU
+    print(f"[*] Starting transcription with {workers} worker threads across {len(pipelines)} active GPU(s)...")
+    # Using ThreadPoolExecutor for I/O-bound tasks (like waiting for GPU) and GIL release
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        # Submit all transcription jobs to the thread pool
+        # Each job gets the job details, the dictionary of pipelines, and the dictionary of semaphores
+        futures = [pool.submit(transcribe_single, job, pipelines, semaphores)
+                   for job in job_table if job[2] in pipelines] # Only submit jobs for GPUs that initialized successfully
+
+        # Wait for all submitted tasks to complete
+        # as_completed yields futures as they finish (or raise exceptions)
+        for f in concurrent.futures.as_completed(futures):
+            # Error handling is done within transcribe_single,
+            # but we can check for exceptions here if needed
+            try:
+                f.result() # Call result() to raise exceptions if any occurred in the thread
+            except Exception as exc:
+                # This catches exceptions *not* caught inside transcribe_single,
+                # or exceptions raised by result() itself.
+                print(f" ✘ An unexpected error occurred in a worker thread: {exc}")
+
+    print("🎉 All transcription tasks completed.")
+
+# ---------- Entry Point ----------
 if __name__ == "__main__":
+    # Initial scan just to show found files before starting the main process
+    print("[*] Initial file scan:")
+    audio_list = collect_audio_files(AUDIO_ROOT, AUDIO_EXTS)
+    if audio_list:
+        print(f"[*] Found {len(audio_list)} audio file(s). First 10:")
+        for p in audio_list[:10]:
+            print(f"    - {p}")
+    else:
+        print(f"[*] No audio files found in {AUDIO_ROOT}")
+
+    # Record start time
+    tic = time.time()
+    # Run the main transcription workflow
     main()
+    # Calculate and print total time elapsed
+    toc = time.time()
+    print(f"[*] Total execution time: {toc - tic:.2f} seconds.")
+
 ```
 
-### Merging Transcription Texts
-
-Simply copy and execute to merge the two transcribed documents directly (default filename is `merged_output.txt`). Renaming is not recommended to avoid issues during merging.
+### Merge Transcribed Texts
+After running the code above, files like `01.txt`, `02.txt` etc., will be generated according to the naming convention. Use the following code to merge them if needed. Ensure the file list at the bottom (`files_to_merge`) is correct for your needs. The output filename defaults to `merged_output.txt`.
 
 ```python
-def merge_transcriptions(file1, file2, output_file):
-    def parse_timestamp(timestamp_str):
-        """Convert timestamp in XX:XX:XX format to seconds"""
+import os
+import re
+from datetime import timedelta
+
+def parse_timestamp_str(timestamp_str: str) -> float:
+    """Parses an HH:MM:SS timestamp string into total seconds."""
+    try:
         h, m, s = map(int, timestamp_str.split(':'))
         return h * 3600 + m * 60 + s
+    except ValueError:
+        print(f"Warning: Could not parse timestamp '{timestamp_str}'. Using 0 seconds.")
+        return 0.0
 
-    def format_timestamp(seconds):
-        """Convert seconds to XX:XX:XX timestamp format"""
-        return format_to_custom_timestamp(seconds)
-    
+def format_seconds_to_timestamp(seconds: float) -> str:
+    """Formats total seconds into an HH:MM:SS timestamp string."""
+    # Ensure seconds are non-negative
+    seconds = max(0, seconds)
+    # Use timedelta for robust handling of time calculations
+    td = timedelta(seconds=round(seconds)) # Round to nearest second
+    # Format as HH:MM:SS
+    hours, remainder = divmod(td.total_seconds(), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+
+def merge_transcriptions(input_files: list, output_file: str):
+    """
+    Merges multiple transcription files, adjusting timestamps sequentially.
+
+    Args:
+        input_files (list): A list of paths to the transcription files to merge,
+                            in the desired sequential order.
+        output_file (str): The path to save the merged transcription file.
+    """
     merged_content = ""
-    total_duration = 0
+    cumulative_duration = 0.0  # Keep track of the total duration from previous files
 
-    # Read the first file's content
-    with open(file1, 'r', encoding="utf-8") as f1:
-        for line in f1:
-            # Assume timestamp is at the beginning of the line in XX:XX:XX-XX:XX:XX format
-            time_range, text = line.split(' ', 1)
-            start_time_str, end_time_str = time_range.split('-')
-            
-            # Convert timestamp to seconds
-            start_time = parse_timestamp(start_time_str)
-            end_time = parse_timestamp(end_time_str)
-            
-            # Update timestamps to include the cumulative total time
-            new_start_time = format_timestamp(start_time + total_duration)
-            new_end_time = format_timestamp(end_time + total_duration)
-            
-            # Merge the updated line
-            merged_content += f"{new_start_time}-{new_end_time} {text}"
-        
-        # Update the cumulative total time
-        total_duration = parse_timestamp(new_end_time)
-    
-    # Read the second file's content and merge
-    with open(file2, 'r', encoding="utf-8") as f2:
-        for line in f2:
-            time_range, text = line.split(' ', 1)
-            start_time_str, end_time_str = time_range.split('-')
-            
-            # Convert timestamp to seconds
-            start_time = parse_timestamp(start_time_str)
-            end_time = parse_timestamp(end_time_str)
-            
-            # Update timestamps to include the cumulative total time
-            new_start_time = format_timestamp(start_time + total_duration)
-            new_end_time = format_timestamp(end_time + total_duration)
-            
-            # Merge the updated line
-            merged_content += f"{new_start_time}-{new_end_time} {text}"
-    
-    # Save the merged content to the output file
-    with open(output_file, 'w', encoding="utf-8") as out_file:
-        out_file.write(merged_content)
+    print(f"[*] Starting merge process for files: {input_files}")
 
-    print(f"Transcriptions merged and saved to {output_file}")
+    for i, file_path in enumerate(input_files):
+        if not os.path.exists(file_path):
+            print(f"Warning: File not found: {file_path}. Skipping.")
+            continue
 
-# Assume 04.txt and 05.txt have been successfully generated
-merge_transcriptions("04.txt", "05.txt", "merged_output.txt")
+        print(f"    Processing file {i+1}/{len(input_files)}: {file_path}")
+        last_end_time_in_file = 0.0 # Track the end time within the current file
+
+        try:
+            with open(file_path, 'r', encoding="utf-8") as f_in:
+                for line_num, line in enumerate(f_in):
+                    line = line.strip()
+                    if not line: continue # Skip empty lines
+
+                    # Regex to capture HH:MM:SS-HH:MM:SS timestamp and the text
+                    match = re.match(r"(\d{2}:\d{2}:\d{2})-(\d{2}:\d{2}:\d{2})\s+(.*)", line)
+                    if not match:
+                        print(f"Warning: Skipping malformed line {line_num+1} in {file_path}: '{line}'")
+                        continue
+
+                    start_time_str, end_time_str, text_content = match.groups()
+
+                    # Parse original timestamps to seconds
+                    original_start_sec = parse_timestamp_str(start_time_str)
+                    original_end_sec = parse_timestamp_str(end_time_str)
+
+                    # Calculate new timestamps by adding the cumulative duration
+                    new_start_sec = original_start_sec + cumulative_duration
+                    new_end_sec = original_end_sec + cumulative_duration
+
+                    # Format new timestamps back to HH:MM:SS strings
+                    new_start_time_fmt = format_seconds_to_timestamp(new_start_sec)
+                    new_end_time_fmt = format_seconds_to_timestamp(new_end_sec)
+
+                    # Append the adjusted line to the merged content
+                    merged_content += f"{new_start_time_fmt}-{new_end_time_fmt} {text_content}\n"
+
+                    # Update the latest end time encountered in this file
+                    last_end_time_in_file = max(last_end_time_in_file, original_end_sec)
+
+        except Exception as e:
+            print(f"Error reading or processing file {file_path}: {e}")
+            # Decide if you want to stop merging or continue with the next file
+            # For robustness, we'll continue here but print the error.
+            continue # Skip to the next file
+
+        # After processing a file, add its duration to the cumulative total
+        # Use the last original end time found in that file
+        print(f"    Finished processing {file_path}. Duration added: {last_end_time_in_file:.2f} seconds.")
+        cumulative_duration += last_end_time_in_file
+
+    # Write the final merged content to the output file
+    try:
+        with open(output_file, 'w', encoding="utf-8") as f_out:
+            f_out.write(merged_content)
+        print(f"✔ Transcriptions successfully merged and saved to {output_file}")
+        print(f"[*] Total merged duration (approx): {format_seconds_to_timestamp(cumulative_duration)}")
+    except Exception as e:
+        print(f"Error writing merged content to {output_file}: {e}")
+
+# --- Example Usage ---
+# List the files you want to merge in the correct order
+# Ensure these files exist after running the transcription script
+files_to_merge = ["01.txt", "02.txt"] # Add more files if needed, e.g., "03.txt"
+output_merge_file = "merged_output.txt"
+
+# Check if the input files exist before attempting merge
+existing_files = [f for f in files_to_merge if os.path.exists(f)]
+if len(existing_files) != len(files_to_merge):
+     print(f"[!] Warning: Not all specified files found. Merging only existing files: {existing_files}")
+
+if existing_files:
+    merge_transcriptions(existing_files, output_merge_file)
+else:
+    print("[!] No input files found for merging. Skipping merge operation.")
 ```
 
 ## Contributing
 
-Contributions are welcome in any form! If you need assistance or wish to make adjustments, feel free to consult GPT. I also developed this project gradually with its help~
+Contributions of any kind are welcome! If you're unsure how to contribute or need adjustments, feel free to ask GPT – I learned much of this by asking questions iteratively myself!
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). See the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](LICENSE). Please see the [LICENSE](LICENSE) file for details.
 
-## Third-Party Licensing
+## Third-Party Licenses
 
 - **faster-whisper**: This project uses the [faster-whisper](https://github.com/SYSTRAN/faster-whisper) library, which is licensed under the MIT License.
-- **faster-whisper-large-v2-zh-TW Model**: The example model used in this project is sourced from [Hugging Face](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW). Please adhere to its [licensing terms](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW).
+- **faster-whisper-large-v2-zh-TW Model**: The example model used in this project comes from [Hugging Face](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW). Please adhere to its specific license terms.
 
 ## Acknowledgements
 
-Special thanks to the following projects and resources for supporting this project:
+Special thanks to the following projects and resources for their support:
 
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper) development team
+- The [faster-whisper](https://github.com/SYSTRAN/faster-whisper) development team
 - [Hugging Face](https://huggingface.co/XA9/faster-whisper-large-v2-zh-TW) for providing excellent model resources
 - [Kaggle](https://www.kaggle.com/) for providing free GPU resources
 
 ## Contact
 
-If you have any questions or suggestions, please reach out through the following methods:
+If you have any questions or suggestions, please feel free to reach out:
 
 - **Email**: a0953041880@gmail.com
-- **GitHub Issues**: Not available
+- **GitHub Issues**: Please use the repository's "Issues" tab for bug reports or feature requests.
 
-Thank you for your attention and support! See you next time~
+Thank you for your interest and support! Cheers~ See you next time.
 
 ---
 
