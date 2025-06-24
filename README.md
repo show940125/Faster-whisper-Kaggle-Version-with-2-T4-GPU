@@ -128,7 +128,7 @@
 1. 注意MODEL_PATH = "複製你input的whisper model的路徑(直接點COPY就好)"
 2. 其他參數已經經過超過300小時以上的轉錄任務實際驗證，不太需要調整
 3. replacements(用Ctrl+f查找)部分能提供固定轉錄任務(比如多次轉錄同一個講者的音檔)較佳的體驗，把固定的錯漏字直接替換成正確的文字，格式為"錯字": "正確字",
-4. 本專案(按範例模型)實測3小時音頻文件(WAV檔，同常大小約300MB)的轉錄任務約需9分鐘轉錄時間，準確度平均在90%以上，再透過gemini校正，準確率可達99%，不唬爛。
+4. 本專案(按範例模型)實測3小時音頻文件(WAV檔，256K同常大小約300MB)的轉錄任務約需3至4鐘轉錄時間，準確度平均在90%以上，再透過gemini校正，準確率可達99%，不唬爛。
 5. 錄音筆建議預設錄製WAV/flac檔，精度確實優於MP3檔。WAV檔(192K&256K)大概是音質影響精度的極限，再大則無用。
 
 ```python
@@ -495,7 +495,7 @@ In a new Kaggle notebook, execute the following code blocks step-by-step. It's d
 1.  **Important:** Set `MODEL_PATH = "copy the path of your input whisper model here (just click COPY path)"`.
 2.  Other parameters have been validated through over 300 hours of actual transcription tasks and generally don't need adjustment.
 3.  The `replacements` dictionary (find using Ctrl+F) is useful for consistent tasks (e.g., transcribing the same speaker multiple times) by automatically correcting common misrecognitions. Format is `"incorrect word": "correct word",`.
-4.  Based on internal testing (using the example model), transcribing a 3-hour audio file (WAV format, typically around 300MB) takes approximately 9 minutes, with an average accuracy above 90%. Post-correction with Gemini can increase accuracy to 99% – no exaggeration.
+4.  Based on internal testing (using the example model), transcribing a 3-hour audio file (WAV format, 256K typically around 300MB) takes approximately 3 to 4 minutes, with an average accuracy above 90%. Post-correction with Gemini can increase accuracy to 99% – no exaggeration.
 5.  It's recommended to record audio in WAV or FLAC format by default, as their precision is indeed superior to MP3. WAV files at 192kbps or 256kbps seem to hit the sweet spot for quality influencing accuracy; higher bitrates yield diminishing returns.
 
 ```python
