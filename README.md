@@ -21,7 +21,7 @@
 ### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~ **[更新]** **新代碼整合了批次處理 (Batch Processing) 和更精細的並行控制，效率更高。**
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
-### ~~☆新增：**FW1.2.0 with Batched pipeline full code (2024/11/22)~~ **[更新]** **目前代碼已整合 `BatchedInferencePipeline`，並提供更完善的自動化處理流程 (2025/04/22)。**
+### ~~☆新增：**FW1.1.0 with Batched pipeline full code (2024/11/22)~~ **[更新]** **目前代碼已整合 `BatchedInferencePipeline`，並提供更完善的自動化處理流程 (2025/04/22)。**
 
 ## 目錄
 
@@ -88,7 +88,8 @@
 #### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前以退回版本方式處理
 #### 2024/12/11**更新**:~FW1.1.0版本中問題似乎已經解決，可以拿掉ctranslate2==4.4.0。~
 #### 2025/04/22**更新**:~FW1.2.0版本下問題受限於平台環境的依賴版本，目前仍需ctranslate2==4.4.0。 **[註]**:平台環境目前不穩定，建議回滾到去年以前的環境或等更新~
-#### 2025/06/30**更新**:`ctranslate2` 已升級，並隨 `faster-whisper==1.2.0` 一併安裝，相關 CUDA 相容性問題已解決，無需再額外安裝 `ctranslate2==4.4.0`。
+#### 2025/06/30**更新**:`ctranslate2` 已升級，並隨 `faster-whisper==1.1.1` 一併安裝，相關 CUDA 相容性問題已解決，無需再額外安裝 `ctranslate2==4.4.0`。
+#### 2025/08/11**更新**:更新版本faster-whisper==1.2.0
 
 ```python
 # 安裝 faster-whisper (已內含 ctranslate2)
@@ -143,6 +144,7 @@ import concurrent.futures, threading, multiprocessing as mp
 # ================================================================
 # 1. 參數區（可調）
 # ================================================================
+# [1.0] 路徑設定
 MODEL_PATH = "/kaggle/working/1"
 AUDIO_ROOT = "/kaggle/input"            # 更換資料夾只改這裡
 AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")
@@ -531,6 +533,7 @@ In a new Kaggle Notebook, execute the following command to install the `faster-w
 #### 2024/12/11 **Update**: ~~Issue seems resolved in FW1.1.0, `ctranslate2==4.4.0` might be removable.~~
 #### 2025/04/22 **Update**: ~~Under FW1.2.0, due to platform environment dependency versions, `ctranslate2==4.4.0` is still required. **[Note]**: The platform environment is currently unstable; reverting to an environment from last year or waiting for updates is recommended.~~
 #### 2025/06/30 **Update**: `ctranslate2` has been upgraded and is bundled with `faster-whisper==1.2.0`. The previous compatibility issue has been resolved, so you no longer need to install `ctranslate2==4.4.0` separately.
+#### 2025/08/11 **Update**: faster-whisper version updated(1.2.0)
 
 ```python
 # Install faster-whisper (includes ctranslate2)
