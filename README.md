@@ -21,7 +21,7 @@
 ### 本人已脫離政治工作，也不知道誰會看到本專案(因為通常這類工作的人根本不會打開github)，幫助後輩少走彎路是我對前一份工作的執念，目前這些代碼集成已經接近穩定，後續是否還有優化空間我再問問GPT~ **[更新]** **新代碼整合了批次處理 (Batch Processing) 和更精細的並行控制，效率更高。**
 ### 的確網路上有比較快的Demo，比如whisperJAX、Whisper web gpu甚至groq api等等，但無法使用客製化模型，也無法使用較大的音檔(通常超過25MB~=30分鐘低音值mp3檔就不太能用)
 ### ☆贈與有緣人~反正整套目前都不用花錢~
-### ~~☆新增：**FW1.1.1 with Batched pipeline full code (2024/11/22)~~ **[更新]** **目前代碼已整合 `BatchedInferencePipeline`，並提供更完善的自動化處理流程 (2025/04/22)。**
+### ~~☆新增：**FW1.2.0 with Batched pipeline full code (2024/11/22)~~ **[更新]** **目前代碼已整合 `BatchedInferencePipeline`，並提供更完善的自動化處理流程 (2025/04/22)。**
 
 ## 目錄
 
@@ -50,6 +50,7 @@
 3.  **轉錄文本的分段與打印優化**
     *   **固定時間間隔分段**：基於可配置的 `SEGMENT_DURATION` (預設 30 秒) 時間間隔進行文本分段，提升上下文可讀性，方便後續校正。
     *   **即時進度打印**：轉錄過程中，逐段打印帶時間戳的文本到控制台，方便即時監控進度。**[新增]**
+    *   **首段起點修正**：以第一個語音片段的 start 作為段落起點，避免前置靜音造成時間戳誤差。
     *   **gemini後續校正**：利用Google AI Studio可調用免費gemini 2.5 /proflash進行高精度免費校稿，經多次測試驗證，每次校正約6500token之份量可以兼顧穩定的校正品質以及效率。
 
 4.  **[更新]** **易用性與錯誤處理**
@@ -86,12 +87,12 @@
 在新開的 Kaggle Notebook 中，執行以下命令來安裝 `faster-whisper` 套件：(約20秒)
 #### 2024/10/26**更新**:ctranslate2最新版在cuda相容性上貌似出現問題，目前以退回版本方式處理
 #### 2024/12/11**更新**:~FW1.1.0版本中問題似乎已經解決，可以拿掉ctranslate2==4.4.0。~
-#### 2025/04/22**更新**:~FW1.1.1版本下問題受限於平台環境的依賴版本，目前仍需ctranslate2==4.4.0。 **[註]**:平台環境目前不穩定，建議回滾到去年以前的環境或等更新~
-#### 2025/06/30**更新**:`ctranslate2` 已升級至 4.6.0，並隨 `faster-whisper==1.1.1` 一併安裝，相關 CUDA 相容性問題已解決，無需再額外安裝 `ctranslate2==4.4.0`。
+#### 2025/04/22**更新**:~FW1.2.0版本下問題受限於平台環境的依賴版本，目前仍需ctranslate2==4.4.0。 **[註]**:平台環境目前不穩定，建議回滾到去年以前的環境或等更新~
+#### 2025/06/30**更新**:`ctranslate2` 已升級，並隨 `faster-whisper==1.2.0` 一併安裝，相關 CUDA 相容性問題已解決，無需再額外安裝 `ctranslate2==4.4.0`。
 
 ```python
-# 安裝 faster-whisper (已內含 ctranslate2 4.6.0)
-!pip install faster-whisper==1.1.1 -q
+# 安裝 faster-whisper (已內含 ctranslate2)
+!pip install faster-whisper==1.2.0 -q
 ```
 
 #### 2. 上傳模型至 Kaggle，並在notebook中加載
@@ -132,30 +133,34 @@
 5. 錄音筆建議預設錄製WAV/flac檔，精度確實優於MP3檔。WAV檔(192K&256K)大概是音質影響精度的極限，再大則無用。
 
 ```python
-# ---------- import字典 ----------
+%%time
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 import datetime, time, os, re, torch, glob
 from typing import List, Tuple, Dict
-import concurrent.futures, threading
+import concurrent.futures, threading, multiprocessing as mp
 
-# ---------- 可調參數 ----------
-MODEL_PATH = "/kaggle/input/faster-whisper..."
-AUDIO_ROOT = "/kaggle/input"            # 只改這裡就能換資料來源
-AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")   # 允許的音檔副檔名
-SEGMENT_DURATION = 30.0                          # 每段最長秒數
-BATCH_SIZE = 8
-MAX_CONCURRENCY_PER_GPU = 2                     # 同張卡並行上限
-REPLACEMENTS: Dict[str, str] = {                # 常見錯字修正表
-    "XX": "OO" 
-}
-INITIAL_PROMPT = "XXX"                      # 給模型的 system prompt（可留空）
+%%time
+# ================================================================
+# 1. 參數區（可調）
+# ================================================================
+MODEL_PATH = "/kaggle/working/1"
+AUDIO_ROOT = "/kaggle/input"            # 更換資料夾只改這裡
+AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")
 
-# ---------- 自動收集音檔 ----------
+# [1.2] 轉錄與分段
+SEGMENT_DURATION = 30.0                 # 一行最多覆蓋的「牆鐘時間」秒數
+BATCH_SIZE = 24
+MAX_CONCURRENCY_PER_GPU = 2
+
+# [1.3] 文本清理與初始提示
+REPLACEMENTS: Dict[str, str] = {"課題": "客體", "緝罪": "既遂"}
+INITIAL_PROMPT = "法律"
+
+# ================================================================
+# 2. 公用小工具
+# ================================================================
+# [2.1] 收集音檔清單
 def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
-    """
-    遞迴走訪 root 底下所有子目錄，
-    只要檔名副檔名（不論大小寫）符合 exts，就收進來。
-    """
     exts_lower = {e.lower() for e in exts}
     files = []
     for dirpath, _, filenames in os.walk(root):
@@ -165,118 +170,186 @@ def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
                 files.append(os.path.join(dirpath, fn))
     return sorted(files)
 
-# ---------- 建立 (音檔, 輸出檔, GPU index) 對照表 ----------
-def create_job_table(audio_files: List[str], gpu_count: int) -> List[Tuple[str, str, int]]:
-    jobs = []
-    for idx, path in enumerate(audio_files, start=1):
-        out_name = f"{idx:02d}.txt"
-        gpu_idx = idx % gpu_count  # round‑robin
-        jobs.append((path, out_name, gpu_idx))
-    return jobs
-
-# ---------- 取代/清洗工具 ----------
-pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS.keys()))
-def clean_text(txt: str) -> str:
-    txt = txt.lstrip("! ")
-    return pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
-
+# [2.2] 秒 → 時:分:秒
 def to_timestamp(sec: float) -> str:
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
     s = int(sec % 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
+# [2.3] 格式化一行輸出
 def fmt_chunk(start: float, end: float, txt: str) -> str:
     return f"{to_timestamp(start)}-{to_timestamp(end)} {txt.strip()}\n"
 
-# ---------- 轉錄 + 寫檔 ----------
+# [2.4] 文本清理（關鍵詞替換 + 去前綴符號）
+_pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS)) if REPLACEMENTS else None
+def clean_text(txt: str) -> str:
+    txt = txt.lstrip("! ").strip()
+    if _pattern:
+        txt = _pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
+    return txt
+
+# [2.5] 段落輸出（修正版）
 def process_segments(segments, outfile: str, max_len=SEGMENT_DURATION):
-    buf, chunk_start, chunk_txt = "", 0.0, ""
+    """
+    [2.5] 段落輸出（修正版）
+    目的：修正首段起點硬從 0:00 算的問題；改成「以第一個 seg.start 為起點」。
+         這樣不會在音檔前置靜音時，把時間區間算得過長。
+    規則：
+      (1) 一行最多涵蓋 max_len 秒（用牆鐘時間：最後一個 seg.end - 該行第一個 seg.start）。
+      (2) 換行後，下一行的起點 = 下一個實際 seg.start（不壓縮中間靜音）。
+    註：若你偏好「壓縮靜音」（下一行起點改接前一行的 last_end），
+        可把 `chunk_start = None` 的邏輯，改為 `chunk_start = last_end`。
+    """
+    buf_lines = []
+    chunk_start = None
+    chunk_text_parts = []
+    last_end = None
+
     for seg in segments:
-        chunk_txt += " " + clean_text(seg.text)
-        if seg.end - chunk_start >= max_len:
-            line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+        if chunk_start is None:
+            chunk_start = float(getattr(seg, "start", 0.0))
+            chunk_text_parts = []
+
+        chunk_text_parts.append(clean_text(seg.text))
+        last_end = float(getattr(seg, "end", chunk_start))
+
+        if (last_end - chunk_start) >= max_len:
+            line_txt = " ".join(chunk_text_parts).strip()
+            line = fmt_chunk(chunk_start, last_end, line_txt)
             print(line, end="", flush=True)
-            buf += line
-            chunk_start, chunk_txt = seg.end, ""
-    if chunk_txt:
-        line = fmt_chunk(chunk_start, seg.end, chunk_txt)
+            buf_lines.append(line)
+
+            chunk_start = None
+            chunk_text_parts = []
+            last_end = None
+
+    if chunk_text_parts:
+        end_time = last_end if last_end is not None else chunk_start
+        line_txt = " ".join(chunk_text_parts).strip()
+        line = fmt_chunk(chunk_start, end_time, line_txt)
         print(line, end="", flush=True)
-        buf += line
-    with open(outfile, "w", encoding="utf‑8") as fh:
-        fh.write(buf)
+        buf_lines.append(line)
+
+    with open(outfile, "w", encoding="utf-8") as fh:
+        fh.write("".join(buf_lines))
     print(f" ✔ 已寫入 {outfile}")
 
-def transcribe_single(job, pipelines, semaphores):
-    in_path, out_path, gpu_idx = job
-    sem = semaphores[gpu_idx]
-    with sem:  # 限制同一張卡的並行數
-        try:
-            segments, _info = pipelines[gpu_idx].transcribe(
-                in_path,
-                batch_size=BATCH_SIZE,
-                word_timestamps=True,
-                hallucination_silence_threshold=3,
-                initial_prompt=INITIAL_PROMPT or None,
-                beam_size=5,
-                temperature=0,
-                patience=1.5,
-                language="zh",
-                max_new_tokens=256,
-                condition_on_previous_text=False,
-                no_repeat_ngram_size=3,
-                vad_filter=True,
-                vad_parameters={"min_silence_duration_ms": 250, "speech_pad_ms": 600},
-                log_progress=True,
-            )
-            process_segments(segments, out_path)
-        except Exception as exc:
-            print(f" ✘ 轉錄失敗: {in_path} ({exc})")
+# ================================================================
+# 3. 子進程執行邏輯（每張 GPU 一支）
+# ================================================================
+def gpu_worker(gpu_idx: int,
+               jobs: List[Tuple[str, str]],
+               semaphore_size: int,
+               result_queue: mp.Queue):
+    """
+    [3.1] 子進程只看得見自己的 GPU（透過 CUDA_VISIBLE_DEVICES）
+    [3.2] 載入 WhisperModel → 建 Pipeline（嚴禁在父進程先初始化 CUDA）
+    [3.3] 用 ThreadPoolExecutor + Semaphore 控單卡併發
+    [3.4] 把每個 job 的結果（成功/失敗）寫進 multiprocessing.Queue
+    """
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    try:
+        torch.set_num_threads(1)
+    except Exception:
+        pass
 
-# ---------- 主流程 ----------
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[GPU{gpu_idx}] 開始初始化模型 ...")
+    tic = time.time()
+
+    model = WhisperModel(MODEL_PATH,
+                         device=dev,
+                         device_index=0,
+                         compute_type="float16")
+    pipeline = BatchedInferencePipeline(model=model)
+    print(f"[GPU{gpu_idx}] 模型初始化完成，用時 {time.time()-tic:.1f}s")
+
+    semaphore = threading.Semaphore(semaphore_size)
+
+    def transcribe_one(in_path: str, out_path: str):
+        with semaphore:
+            try:
+                segments, _ = pipeline.transcribe(
+                    in_path,
+                    batch_size=BATCH_SIZE,
+                    word_timestamps=True,
+                    hallucination_silence_threshold=3,
+                    initial_prompt=INITIAL_PROMPT or None,
+                    beam_size=5,
+                    temperature=0,
+                    patience=1.5,
+                    language="zh",
+                    max_new_tokens=256,
+                    condition_on_previous_text=False,
+                    vad_filter=True,
+                    vad_parameters={
+                        "min_silence_duration_ms": 250,
+                        "speech_pad_ms": 600
+                    },
+                    log_progress=True,
+                )
+                process_segments(segments, out_path)
+                result_queue.put((in_path, "✓"))
+            except Exception as exc:
+                print(f"[GPU{gpu_idx}] ✘ 轉錄失敗: {in_path} ({exc})")
+                result_queue.put((in_path, "✘"))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=semaphore_size) as pool:
+        pool.map(lambda pair: transcribe_one(*pair), jobs)
+
+    result_queue.put(("__DONE__", gpu_idx))
+
+# ================================================================
+# 4. 主流程
+# ================================================================
 def main():
-    # 1. 檢查 GPU
-    gpu_count = torch.cuda.device_count() or 1   # 沒 GPU 時 fallback CPU
-    if gpu_count > 4:                            # Kaggle 通常 1 張卡；這裡只是保險
-        gpu_count = 4
-    print(f"偵測到 GPU 數量：{gpu_count}")
-    
-    # 2. 掃描音檔
     audio_files = collect_audio_files(AUDIO_ROOT)
     if not audio_files:
         raise RuntimeError(f"找不到任何音檔於 {AUDIO_ROOT}")
-    job_table = create_job_table(audio_files, gpu_count)
-    
-    # 3. 建立每張卡各自的模型與 pipeline
-    pipelines = {}
-    for idx in range(gpu_count):
-        dev = "cuda" if torch.cuda.is_available() else "cpu"
-        pipelines[idx] = BatchedInferencePipeline(
-            WhisperModel(MODEL_PATH, device=dev, device_index=idx, compute_type="float16")
-        )
-        print(f"GPU {idx} 模型初始化完成")
-    
-    # 4. 為每張卡準備 Semaphore，控制並行度
-    semaphores = {idx: threading.Semaphore(MAX_CONCURRENCY_PER_GPU) for idx in range(gpu_count)}
-    
-    # 5. 多執行緒並行轉錄
-    workers = gpu_count * MAX_CONCURRENCY_PER_GPU
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(transcribe_single, job, pipelines, semaphores) for job in job_table]
-        for f in concurrent.futures.as_completed(futures):
-            pass  # 錯誤已在 transcribe_single 內捕捉
-    
-    print("🎉 所有轉錄任務完成")
+    print(f"共找到 {len(audio_files)} 個音檔")
 
-# Entry
+    gpu_count = min(torch.cuda.device_count() or 1, 4)
+    print(f"偵測到 GPU 數量：{gpu_count}")
+    jobs_by_gpu: Dict[int, List[Tuple[str, str]]] = {i: [] for i in range(gpu_count)}
+    for idx, path in enumerate(audio_files):
+        base = os.path.splitext(os.path.basename(path))[0]
+        jobs_by_gpu[idx % gpu_count].append((path, f"{base}.txt"))
+
+    ctx = mp.get_context("fork")
+    result_queue = ctx.Queue()
+    processes = []
+    for gpu_idx in range(gpu_count):
+        p = ctx.Process(target=gpu_worker,
+                        args=(gpu_idx,
+                              jobs_by_gpu[gpu_idx],
+                              MAX_CONCURRENCY_PER_GPU,
+                              result_queue))
+        p.start()
+        processes.append(p)
+
+    finished_gpu = set()
+    while len(finished_gpu) < gpu_count:
+        item = result_queue.get()
+        if item[0] == "__DONE__":
+            finished_gpu.add(item[1])
+            continue
+        in_path, status = item
+        print(f"[主控] {status} {in_path}")
+
+    for p in processes:
+        p.join()
+    print("🎉 所有轉錄任務完成！")
+
+# ================================================================
+# 5. Entry point
+# ================================================================
 if __name__ == "__main__":
-    audio_list = collect_audio_files(AUDIO_ROOT)
-    print(f"共找到 {len(audio_list)} 個音檔，前 10 筆：")
-    for p in audio_list[:10]:
-        print("  ", p)
-    tic = time.time()
+    t0 = time.time()
     main()
-    print(f"總耗時：{time.time() - tic:.1f} 秒")
+    print(f"總耗時：{time.time() - t0:.1f} 秒")
 ```
 
 ### 合併轉錄文本
@@ -389,7 +462,7 @@ merge_transcriptions("01.txt", "02.txt", "merged_output.txt")
 ### While faster demos exist online (e.g., WhisperJAX, Whisper WebGPU, even Groq API), they often lack support for custom models or large audio files (typically struggling with files over 25MB, roughly equivalent to a 30-minute low-bitrate MP3).
 
 ### ☆ A gift to those destined to find it ~ The entire setup is currently free ~
-### ~~☆ Added: **FW1.1.1 with Batched pipeline full code (2024/11/22)~~ **[Update]** **The current code integrates `BatchedInferencePipeline` and offers a more complete automated processing workflow (2025/04/22).**
+### ~~☆ Added: **FW1.2.0 with Batched pipeline full code (2024/11/22)~~ **[Update]** **The current code integrates `BatchedInferencePipeline` and offers a more complete automated processing workflow (2025/04/22).**
 
 ## Table of Contents
 
@@ -419,6 +492,7 @@ merge_transcriptions("01.txt", "02.txt", "merged_output.txt")
 3.  **Transcript Segmentation and Printing Optimization**
     *   **Fixed Time Interval Segmentation**: Segments the transcript based on a configurable `SEGMENT_DURATION` (default: 30 seconds) interval, enhancing context readability and facilitating subsequent proofreading.
     *   **Real-time Progress Printing**: Prints timestamped text segments to the console during transcription for real-time progress monitoring. **[New]**
+    *   **First Segment Start Fix**: The first line now begins at the first audio segment's start time, avoiding inflated timestamps when there is leading silence.
     *   **Post-correction with Gemini**: Leverage Google AI Studio's free Gemini 1.5 Flash/Pro models for high-accuracy proofreading. Multiple tests have verified that correcting chunks of approximately 6500 tokens balances stable quality and efficiency.
 
 4.  **[Update]** **Usability and Error Handling**
@@ -455,12 +529,12 @@ merge_transcriptions("01.txt", "02.txt", "merged_output.txt")
 In a new Kaggle Notebook, execute the following command to install the `faster-whisper` package (takes about 20 seconds):
 #### 2024/10/26 **Update**: The latest version of `ctranslate2` seems to have CUDA compatibility issues. Currently handled by reverting to an older version.
 #### 2024/12/11 **Update**: ~~Issue seems resolved in FW1.1.0, `ctranslate2==4.4.0` might be removable.~~
-#### 2025/04/22 **Update**: ~~Under FW1.1.1, due to platform environment dependency versions, `ctranslate2==4.4.0` is still required. **[Note]**: The platform environment is currently unstable; reverting to an environment from last year or waiting for updates is recommended.~~
-#### 2025/06/30 **Update**: `ctranslate2` has been upgraded to 4.6.0 and is bundled with `faster-whisper==1.1.1`. The previous compatibility issue has been resolved, so you no longer need to install `ctranslate2==4.4.0` separately.
+#### 2025/04/22 **Update**: ~~Under FW1.2.0, due to platform environment dependency versions, `ctranslate2==4.4.0` is still required. **[Note]**: The platform environment is currently unstable; reverting to an environment from last year or waiting for updates is recommended.~~
+#### 2025/06/30 **Update**: `ctranslate2` has been upgraded and is bundled with `faster-whisper==1.2.0`. The previous compatibility issue has been resolved, so you no longer need to install `ctranslate2==4.4.0` separately.
 
 ```python
-# Install faster-whisper (includes ctranslate2 4.6.0)
-!pip install faster-whisper==1.1.1 -q
+# Install faster-whisper (includes ctranslate2)
+!pip install faster-whisper==1.2.0 -q
 ```
 
 #### 2. Upload the Model to Kaggle and Load it in the Notebook
@@ -499,291 +573,234 @@ In a new Kaggle notebook, execute the following code blocks step-by-step. It's d
 5.  It's recommended to record audio in WAV or FLAC format by default, as their precision is indeed superior to MP3. WAV files at 192kbps or 256kbps seem to hit the sweet spot for quality influencing accuracy; higher bitrates yield diminishing returns.
 
 ```python
-# ---------- Imports ----------
+%%time
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 import datetime, time, os, re, torch, glob
 from typing import List, Tuple, Dict
-import concurrent.futures, threading
+import concurrent.futures, threading, multiprocessing as mp
 
-# ---------- Adjustable Parameters ----------
-MODEL_PATH = "/kaggle/input/faster-whisper-large-v2-zh-tw/faster-whisper-large-v2-zh-TW" # Example path, REPLACE with your actual model path
-AUDIO_ROOT = "/kaggle/input"            # Root directory for audio files (change this to switch data sources)
-AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")   # Allowed audio file extensions
-SEGMENT_DURATION = 30.0                          # Maximum duration per segment in seconds
-BATCH_SIZE = 8                                   # Batch size for inference
-MAX_CONCURRENCY_PER_GPU = 2                     # Max concurrent tasks per GPU
-REPLACEMENTS: Dict[str, str] = {                # Common typo correction table
-    "misspoken": "correct word",                # Example: "misspoken": "spoken correctly"
-    "XX": "OO"                                  # Placeholder from original
-}
-INITIAL_PROMPT = "Transcribe the speech accurately." # System prompt for the model (can be empty or customized, e.g., for specific terms)
+%%time
+# ================================================================
+# 1. Adjustable Parameters
+# ================================================================
+MODEL_PATH = "/kaggle/working/1"
+AUDIO_ROOT = "/kaggle/input"            # Change here to switch audio source
+AUDIO_EXTS = (".wav", ".flac", ".mp3", ".ogg")
 
-# ---------- Auto-collect Audio Files ----------
+# [1.2] Transcription & segmentation
+SEGMENT_DURATION = 30.0                 # Max wall-clock seconds per line
+BATCH_SIZE = 24
+MAX_CONCURRENCY_PER_GPU = 2
+
+# [1.3] Text cleanup & initial prompt
+REPLACEMENTS: Dict[str, str] = {"課題": "客體", "緝罪": "既遂"}
+INITIAL_PROMPT = "法律"
+
+# ================================================================
+# 2. Utility Functions
+# ================================================================
+# [2.1] Gather audio file list
+
 def collect_audio_files(root: str, exts=AUDIO_EXTS) -> List[str]:
-    """
-    Recursively walks through all subdirectories under 'root'.
-    Collects files whose extensions (case-insensitive) match 'exts'.
-    Returns a sorted list of found file paths.
-    """
-    exts_lower = {e.lower() for e in exts} # Convert extensions to lowercase for case-insensitive matching
+    exts_lower = {e.lower() for e in exts}
     files = []
-    print(f"[*] Searching for audio files in: {root} with extensions: {exts}")
     for dirpath, _, filenames in os.walk(root):
         for fn in filenames:
-            # Check file extension
             ext = os.path.splitext(fn)[1].lower()
             if ext in exts_lower:
-                full_path = os.path.join(dirpath, fn)
-                files.append(full_path)
-                # print(f"    Found: {full_path}") # Uncomment for verbose file listing
-    print(f"[*] Found {len(files)} audio files.")
-    return sorted(files) # Sort files for consistent processing order
+                files.append(os.path.join(dirpath, fn))
+    return sorted(files)
 
-# ---------- Create (Audio File, Output File, GPU Index) Job Table ----------
-def create_job_table(audio_files: List[str], gpu_count: int) -> List[Tuple[str, str, int]]:
-    """
-    Creates a list of jobs, where each job is a tuple containing:
-    (input_audio_path, output_text_path, assigned_gpu_index).
-    Assigns GPUs in a round-robin fashion.
-    Output filenames are generated as '01.txt', '02.txt', ...
-    """
-    jobs = []
-    for idx, path in enumerate(audio_files, start=1):
-        # Generate output filename based on index (e.g., 01.txt, 02.txt)
-        out_name = f"{idx:02d}.txt"
-        # Assign GPU index using modulo operator for round-robin distribution
-        gpu_idx = (idx - 1) % gpu_count # Use (idx-1) for 0-based GPU indexing
-        jobs.append((path, out_name, gpu_idx))
-        print(f"    Job {idx}: {os.path.basename(path)} -> {out_name} (GPU {gpu_idx})")
-    return jobs
-
-# ---------- Replacement/Cleaning Utilities ----------
-# Compile a regex pattern for efficient replacement of multiple keywords
-# re.escape is used to handle special characters in keys correctly
-pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS.keys()))
-
-def clean_text(txt: str) -> str:
-    """
-    Cleans the transcribed text:
-    1. Removes leading exclamation marks or spaces.
-    2. Applies predefined replacements from the REPLACEMENTS dictionary.
-    """
-    # Strip leading noise characters sometimes introduced by Whisper
-    txt = txt.lstrip("! ")
-    # Perform replacements using the precompiled regex pattern
-    return pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
+# [2.2] Seconds -> HH:MM:SS
 
 def to_timestamp(sec: float) -> str:
-    """Converts seconds (float) to HH:MM:SS format string."""
-    # Ensure non-negative time
-    sec = max(0, sec)
     h = int(sec // 3600)
     m = int((sec % 3600) // 60)
     s = int(sec % 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
 
+# [2.3] Format a line
+
 def fmt_chunk(start: float, end: float, txt: str) -> str:
-    """Formats a text chunk with start and end timestamps."""
-    # Format: "HH:MM:SS-HH:MM:SS Text content\n"
     return f"{to_timestamp(start)}-{to_timestamp(end)} {txt.strip()}\n"
 
-# ---------- Transcribe + Write File ----------
+# [2.4] Text cleanup (keyword replacement + trim prefixes)
+
+_pattern = re.compile("|".join(re.escape(k) for k in REPLACEMENTS)) if REPLACEMENTS else None
+
+def clean_text(txt: str) -> str:
+    txt = txt.lstrip("! ").strip()
+    if _pattern:
+        txt = _pattern.sub(lambda m: REPLACEMENTS[m.group(0)], txt)
+    return txt
+
+# [2.5] Segment output (revised)
+
 def process_segments(segments, outfile: str, max_len=SEGMENT_DURATION):
     """
-    Processes transcribed segments, groups them into chunks based on max_len,
-    formats them with timestamps, prints them to console, and writes to outfile.
+    [2.5] Segment output (revised)
+    Purpose: fix the issue of always starting at 0:00 by using the first seg.start instead.
+             This avoids inflated timestamps when there is leading silence.
+    Rules:
+      (1) Each line covers at most max_len seconds of wall-clock time (last seg.end - first seg.start).
+      (2) After a line break, the next line starts at the next actual seg.start (no compression of silence).
+    Note: If you prefer compressing silence (next line start = last_end),
+          change `chunk_start = None` logic to `chunk_start = last_end`.
     """
-    buf = ""            # Buffer to store formatted lines for writing to file
-    chunk_start = 0.0   # Start time of the current chunk being accumulated
-    chunk_txt = ""      # Accumulated text for the current chunk
-    last_seg_end = 0.0  # Keep track of the end time of the last segment processed
+    buf_lines = []
+    chunk_start = None
+    chunk_text_parts = []
+    last_end = None
 
-    print(f"[*] Processing segments for: {outfile}")
-    for i, seg in enumerate(segments):
-        # Accumulate cleaned text from the segment
-        cleaned_segment_text = clean_text(seg.text)
-        chunk_txt += " " + cleaned_segment_text
-        last_seg_end = seg.end # Update the end time
+    for seg in segments:
+        if chunk_start is None:
+            chunk_start = float(getattr(seg, "start", 0.0))
+            chunk_text_parts = []
 
-        # If the current chunk duration exceeds max_len, format and store it
-        if seg.end - chunk_start >= max_len:
-            line = fmt_chunk(chunk_start, seg.end, chunk_txt)
-            print(line.strip()) # Print formatted chunk to console (strip trailing newline)
-            buf += line         # Add formatted chunk to the file buffer
-            chunk_start = seg.end # Start the new chunk from the end of this segment
-            chunk_txt = ""      # Reset the text for the new chunk
+        chunk_text_parts.append(clean_text(seg.text))
+        last_end = float(getattr(seg, "end", chunk_start))
 
-    # Process any remaining text that didn't form a full chunk
-    if chunk_txt.strip():
-        # Use the end time of the very last segment for the final chunk
-        line = fmt_chunk(chunk_start, last_seg_end, chunk_txt)
-        print(line.strip()) # Print the final chunk
-        buf += line         # Add the final chunk to the buffer
+        if (last_end - chunk_start) >= max_len:
+            line_txt = " ".join(chunk_text_parts).strip()
+            line = fmt_chunk(chunk_start, last_end, line_txt)
+            print(line, end="", flush=True)
+            buf_lines.append(line)
 
-    # Write the entire buffered content to the output file
+            chunk_start = None
+            chunk_text_parts = []
+            last_end = None
+
+    if chunk_text_parts:
+        end_time = last_end if last_end is not None else chunk_start
+        line_txt = " ".join(chunk_text_parts).strip()
+        line = fmt_chunk(chunk_start, end_time, line_txt)
+        print(line, end="", flush=True)
+        buf_lines.append(line)
+
+    with open(outfile, "w", encoding="utf-8") as fh:
+        fh.write("".join(buf_lines))
+    print(f" ✔ Wrote {outfile}")
+
+# ================================================================
+# 3. Worker process (one per GPU)
+# ================================================================
+
+def gpu_worker(gpu_idx: int,
+               jobs: List[Tuple[str, str]],
+               semaphore_size: int,
+               result_queue: mp.Queue):
+    """
+    [3.1] Each subprocess sees only its GPU via CUDA_VISIBLE_DEVICES.
+    [3.2] Load WhisperModel and build pipeline inside subprocess (avoid CUDA init in parent).
+    [3.3] Use ThreadPoolExecutor + Semaphore to control concurrency on a single GPU.
+    [3.4] Put each job result (success/fail) into multiprocessing.Queue.
+    """
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_idx)
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
     try:
-        with open(outfile, "w", encoding="utf-8") as fh:
-            fh.write(buf)
-        print(f" ✔ Successfully wrote transcription to {outfile}")
-    except Exception as e:
-        print(f" ✘ Error writing to file {outfile}: {e}")
+        torch.set_num_threads(1)
+    except Exception:
+        pass
 
-
-def transcribe_single(job, pipelines, semaphores):
-    """
-    Transcribes a single audio file using the assigned GPU and pipeline.
-    Uses a semaphore to limit concurrency on the assigned GPU.
-    Handles potential errors during transcription.
-    """
-    in_path, out_path, gpu_idx = job
-    sem = semaphores[gpu_idx] # Get the semaphore for the assigned GPU
-
-    print(f"[*] Acquiring semaphore for GPU {gpu_idx} for file: {os.path.basename(in_path)}")
-    with sem:  # Acquire semaphore - this blocks if concurrency limit is reached
-        print(f"[*] Starting transcription on GPU {gpu_idx} for: {os.path.basename(in_path)}")
-        try:
-            # Perform transcription using the BatchedInferencePipeline
-            # Note: BatchedInferencePipeline handles batching internally if multiple requests arrive concurrently
-            segments, _info = pipelines[gpu_idx].transcribe(
-                in_path,
-                batch_size=BATCH_SIZE,                      # Max batch size for this specific call
-                word_timestamps=True,                       # Enable word-level timestamps (useful for detailed analysis)
-                hallucination_silence_threshold=3,          # Threshold for VAD to filter hallucinations
-                initial_prompt=INITIAL_PROMPT or None,      # Provide initial prompt if set
-                # --- Decoding options ---
-                beam_size=5,                                # Beam size for beam search decoding
-                temperature=0,                              # Temperature for sampling (0 means greedy decoding)
-                patience=1.5,                               # Beam search patience factor
-                language="zh",                              # Specify language (change if needed, e.g., 'en')
-                # max_new_tokens=256,                       # Max tokens per segment (adjust if needed)
-                condition_on_previous_text=False,           # Improves consistency but can cause repetition
-                # no_repeat_ngram_size=3,                     # Prevent repeating n-grams
-                # --- VAD filter options ---
-                vad_filter=True,                            # Enable Voice Activity Detection filter
-                vad_parameters={"min_silence_duration_ms": 250, "speech_pad_ms": 600}, # VAD tuning
-                # --- Progress logging ---
-                # log_progress=True,                          # faster-whisper internal progress bar (can be verbose)
-            )
-            # Process the generated segments into the desired output format
-            process_segments(segments, out_path, max_len=SEGMENT_DURATION)
-        except Exception as exc:
-            # Catch and report errors for this specific file
-            print(f" ✘ Transcription failed for: {in_path} on GPU {gpu_idx}. Error: {exc}")
-        finally:
-            # Release semaphore implicitly upon exiting the 'with' block
-            print(f"[*] Released semaphore for GPU {gpu_idx} (File: {os.path.basename(in_path)})")
-
-
-# ---------- Main Workflow ----------
-def main():
-    """Main function orchestrating the transcription process."""
-    # 1. Check GPU availability
-    # Default to 1 (CPU) if no CUDA GPUs are found
-    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 1
-    # Limit to a maximum of 4 GPUs (as per Kaggle's typical T4x2/T4x4 setup and feature description)
-    if gpu_count > 4:
-        print(f"[*] Detected {gpu_count} GPUs, but limiting to 4 for this setup.")
-        gpu_count = 4
-    elif not torch.cuda.is_available():
-         print(f"[*] No CUDA GPU detected. Falling back to CPU (will be slow).")
-         gpu_count = 1 # Ensure gpu_count is 1 if falling back to CPU
-    else:
-        print(f"[*] Detected {gpu_count} CUDA GPU(s).")
-        # Print GPU names for verification
-        for i in range(gpu_count):
-            print(f"    GPU {i}: {torch.cuda.get_device_name(i)}")
-
-    # 2. Scan for audio files
-    audio_files = collect_audio_files(AUDIO_ROOT, AUDIO_EXTS)
-    if not audio_files:
-        raise RuntimeError(f"No audio files found matching {AUDIO_EXTS} in {AUDIO_ROOT} or its subdirectories.")
-    # Create the job table distributing files across GPUs
-    print("[*] Creating job table...")
-    job_table = create_job_table(audio_files, gpu_count)
-
-    # 3. Initialize model and pipeline for each GPU
-    pipelines = {} # Dictionary to hold pipeline instances, keyed by GPU index
-    semaphores = {} # Dictionary to hold semaphores, keyed by GPU index
-    print("[*] Initializing models and pipelines for each device...")
-    for idx in range(gpu_count):
-        # Determine device: 'cuda' if GPUs available, otherwise 'cpu'
-        dev = f"cuda:{idx}" if torch.cuda.is_available() else "cpu"
-        device_index = idx if torch.cuda.is_available() else 0 # device_index is 0 for CPU
-
-        print(f"    Initializing model on device: {dev} (Index: {device_index})")
-        try:
-            # Load the Whisper model onto the specified device
-            model = WhisperModel(
-                MODEL_PATH,
-                device=dev.split(':')[0], # 'cuda' or 'cpu'
-                device_index=device_index,
-                compute_type="float16" # Use float16 for T4 GPUs for speed and efficiency
-            )
-            # Create a BatchedInferencePipeline for this model instance
-            pipelines[idx] = BatchedInferencePipeline(model)
-            # Create a semaphore for this GPU to control concurrent tasks
-            semaphores[idx] = threading.Semaphore(MAX_CONCURRENCY_PER_GPU)
-            print(f"    GPU {idx} ({dev}) model and pipeline initialized. Concurrency limit: {MAX_CONCURRENCY_PER_GPU}.")
-        except Exception as e:
-            print(f" ✘ Failed to initialize model on GPU {idx}: {e}")
-            # Handle initialization failure (e.g., exit or try fallback)
-            # For simplicity here, we'll let it potentially fail later if a job needs this GPU
-            # A more robust solution might remove this GPU from the pool or retry
-
-    # Check if any pipelines were successfully created
-    if not pipelines:
-        raise RuntimeError("Failed to initialize any models/pipelines. Cannot proceed.")
-    if len(pipelines) < gpu_count:
-         print("[!] Warning: Failed to initialize models on all detected GPUs. Proceeding with available ones.")
-         # Adjust gpu_count and job_table if necessary, or let jobs fail if assigned to bad GPU
-         # Simple approach: let jobs fail if their assigned GPU init failed.
-
-    # 4. Use ThreadPoolExecutor for parallel transcription
-    # Number of worker threads = total concurrency across all GPUs
-    workers = gpu_count * MAX_CONCURRENCY_PER_GPU
-    print(f"[*] Starting transcription with {workers} worker threads across {len(pipelines)} active GPU(s)...")
-    # Using ThreadPoolExecutor for I/O-bound tasks (like waiting for GPU) and GIL release
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        # Submit all transcription jobs to the thread pool
-        # Each job gets the job details, the dictionary of pipelines, and the dictionary of semaphores
-        futures = [pool.submit(transcribe_single, job, pipelines, semaphores)
-                   for job in job_table if job[2] in pipelines] # Only submit jobs for GPUs that initialized successfully
-
-        # Wait for all submitted tasks to complete
-        # as_completed yields futures as they finish (or raise exceptions)
-        for f in concurrent.futures.as_completed(futures):
-            # Error handling is done within transcribe_single,
-            # but we can check for exceptions here if needed
-            try:
-                f.result() # Call result() to raise exceptions if any occurred in the thread
-            except Exception as exc:
-                # This catches exceptions *not* caught inside transcribe_single,
-                # or exceptions raised by result() itself.
-                print(f" ✘ An unexpected error occurred in a worker thread: {exc}")
-
-    print("🎉 All transcription tasks completed.")
-
-# ---------- Entry Point ----------
-if __name__ == "__main__":
-    # Initial scan just to show found files before starting the main process
-    print("[*] Initial file scan:")
-    audio_list = collect_audio_files(AUDIO_ROOT, AUDIO_EXTS)
-    if audio_list:
-        print(f"[*] Found {len(audio_list)} audio file(s). First 10:")
-        for p in audio_list[:10]:
-            print(f"    - {p}")
-    else:
-        print(f"[*] No audio files found in {AUDIO_ROOT}")
-
-    # Record start time
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[GPU{gpu_idx}] Initializing model ...")
     tic = time.time()
-    # Run the main transcription workflow
-    main()
-    # Calculate and print total time elapsed
-    toc = time.time()
-    print(f"[*] Total execution time: {toc - tic:.2f} seconds.")
 
+    model = WhisperModel(MODEL_PATH,
+                         device=dev,
+                         device_index=0,     # subprocess sees a single GPU
+                         compute_type="float16")
+    pipeline = BatchedInferencePipeline(model=model)
+    print(f"[GPU{gpu_idx}] Model ready in {time.time()-tic:.1f}s")
+
+    semaphore = threading.Semaphore(semaphore_size)
+
+    def transcribe_one(in_path: str, out_path: str):
+        with semaphore:
+            try:
+                segments, _ = pipeline.transcribe(
+                    in_path,
+                    batch_size=BATCH_SIZE,
+                    word_timestamps=True,
+                    hallucination_silence_threshold=3,
+                    initial_prompt=INITIAL_PROMPT or None,
+                    beam_size=5,
+                    temperature=0,
+                    patience=1.5,
+                    language="zh",
+                    max_new_tokens=256,
+                    condition_on_previous_text=False,
+                    vad_filter=True,
+                    vad_parameters={
+                        "min_silence_duration_ms": 250,
+                        "speech_pad_ms": 600
+                    },
+                    log_progress=True,
+                )
+                process_segments(segments, out_path)
+                result_queue.put((in_path, "✓"))
+            except Exception as exc:
+                print(f"[GPU{gpu_idx}] ✘ Transcription failed: {in_path} ({exc})")
+                result_queue.put((in_path, "✘"))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=semaphore_size) as pool:
+        pool.map(lambda pair: transcribe_one(*pair), jobs)
+
+    result_queue.put(("__DONE__", gpu_idx))
+
+# ================================================================
+# 4. Main flow
+# ================================================================
+
+def main():
+    audio_files = collect_audio_files(AUDIO_ROOT)
+    if not audio_files:
+        raise RuntimeError(f"No audio files found in {AUDIO_ROOT}")
+    print(f"Found {len(audio_files)} audio files")
+
+    gpu_count = min(torch.cuda.device_count() or 1, 4)  # Kaggle usually <=2
+    print(f"Detected GPU count: {gpu_count}")
+    jobs_by_gpu: Dict[int, List[Tuple[str, str]]] = {i: [] for i in range(gpu_count)}
+    for idx, path in enumerate(audio_files):
+        base = os.path.splitext(os.path.basename(path))[0]
+        jobs_by_gpu[idx % gpu_count].append((path, f"{base}.txt"))
+
+    ctx = mp.get_context("fork")
+    result_queue = ctx.Queue()
+    processes = []
+    for gpu_idx in range(gpu_count):
+        p = ctx.Process(target=gpu_worker,
+                        args=(gpu_idx,
+                              jobs_by_gpu[gpu_idx],
+                              MAX_CONCURRENCY_PER_GPU,
+                              result_queue))
+        p.start()
+        processes.append(p)
+
+    finished_gpu = set()
+    while len(finished_gpu) < gpu_count:
+        item = result_queue.get()
+        if item[0] == "__DONE__":
+            finished_gpu.add(item[1])
+            continue
+        in_path, status = item
+        print(f"[Main] {status} {in_path}")
+
+    for p in processes:
+        p.join()
+    print("🎉 All transcriptions completed!")
+
+# ================================================================
+# 5. Entry point
+# ================================================================
+
+if __name__ == "__main__":
+    t0 = time.time()
+    main()
+    print(f"Total time: {time.time() - t0:.1f} s")
 ```
+
 
 ### Merge Transcribed Texts
 After running the code above, files like `01.txt`, `02.txt` etc., will be generated according to the naming convention. Use the following code to merge them if needed. Ensure the file list at the bottom (`files_to_merge`) is correct for your needs. The output filename defaults to `merged_output.txt`.
